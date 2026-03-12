@@ -1,6 +1,5 @@
 [![Version](https://img.shields.io/badge/Symcon%20Version-5.1%20%3E-green.svg)](https://www.symcon.de/forum/threads/30857-IP-Symcon-5-1-%28Stable%29-Changelog)
-[![Donate](https://img.shields.io/badge/Donate-Paypal-009cde.svg)](https://www.paypal.me/bumaas)
-# Blind Control
+# Rolladensteuerung
 
 Modul für Symcon ab Version 5.1.
 
@@ -21,7 +20,7 @@ Steuert einen Rollladen bzw. eine Jalousie nach vorgegebenen Einstellungen.
     2. [Spenden](#spenden)
 
 ## 1. Funktionsumfang
-Das Blind Control Modul dient der Steuerung von Rollläden oder anderweitigen Abdunkelungseinrichtungen.
+Das Rolladensteuerung Modul dient der Steuerung von Rollläden oder anderweitigen Abdunkelungseinrichtungen.
 
 Aktuelle Features:
 - Hoch-/Runterfahren zu vorgegebenen Zeiten
@@ -54,15 +53,15 @@ Zusätzlich kann zur leichteren Verwaltung mehrerer Rollläden/Jalousien ein Gru
 
 ### 3.1 Laden des Moduls
 
-Das Modul wird über den Module Store installiert (Suchbegriff: "Blind Control").
+Das Modul wird über den Module Store installiert (Suchbegriff: "Rolladensteuerung").
 
 ### 3.2 Anlegen einer Rollladeninstanz
 
-In Symcon im Objektbaum an beliebiger Stelle `Instanz hinzufügen` auswählen und nach `Blind Controller` suchen. Es wird eine Rollladeninstanz angelegt, in der die Eigenschaften zur Steuerung eines einzelnen Rollladens konfiguriert werden.
+In Symcon im Objektbaum an beliebiger Stelle `Instanz hinzufügen` auswählen und nach `Rolladensteuerung` suchen. Es wird eine Rollladeninstanz angelegt, in der die Eigenschaften zur Steuerung eines einzelnen Rollladens konfiguriert werden.
 
 ### 3.3 Anlegen eines Gruppenmasters
 
-In Symcon im Objektbaum an beliebiger Stelle `Instanz hinzufügen` auswählen und nach `Blind Control Group Master` suchen.
+In Symcon im Objektbaum an beliebiger Stelle `Instanz hinzufügen` auswählen und nach `Rolladensteuerung Gruppe` suchen.
 Es wird ein Gruppenmaster angelegt, in dem Rollläden zu Bearbeitungszwecken (nicht zu Steuerungszwecken!) zusammengefasst werden können.
 Dies ermöglicht es, eine Eigenschaft für mehrere Rollläden in einem Schritt auszulesen oder zu setzen, was die Verwaltung vieler Rollladeninstanzen erleichtert.
 
@@ -214,7 +213,7 @@ Wird ein Kontakt als offen erkannt, erfolgt sofort die Fahrt auf die gewünschte
 
 Sonderfall: Werden gleichzeitig offene Kontakte zum Schließen und zum Öffnen erkannt (z.B. die Tür ist offen und es regnet), erhalten die **Kontakte zum Öffnen Vorrang**.
  
-### 5.6 Blind Controller
+### 5.6 Rolladensteuerung
 
 **Hinweis**: Als Werte sind immer die **Rohwerte der Variable** anzugeben (keine umgerechneten Werte).
 *Beispiele*:
@@ -320,13 +319,12 @@ Dann werden im Webfront die Bewegungen in Form eines Logfiles dargestellt.
 
 |           Modul            |  Typ   |                  GUID                  |
 |:--------------------------:|:------:|:--------------------------------------:|
-|      Blind Controller      | Device | {538F6461-5410-4F4C-91D3-B39122152D56} |
-| Blind Control Group Master | Device | {1ACD8A0D-5385-6D05-9537-F24C9014FD02} |
+| Rolladensteuerung         | Device | {538F6461-5410-4F4C-91D3-B39122152D56} |
+| Rolladensteuerung Gruppe  | Device | {1ACD8A0D-5385-6D05-9537-F24C9014FD02} |
 
 ### Spenden
   
   Die Nutzung des Moduls ist kostenfrei. Niemand sollte sich verpflichtet fühlen, aber wenn das Modul gefällt, dann freue ich mich über eine Spende.
 
-<a href="https://www.paypal.me/bumaas" target="_blank"><img src="https://www.paypalobjects.com/de_DE/DE/i/btn/btn_donate_LG.gif" border="0" /></a>
 
 

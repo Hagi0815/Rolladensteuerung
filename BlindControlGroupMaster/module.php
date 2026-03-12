@@ -81,7 +81,7 @@ class BlindControlGroupMaster extends IPSModuleStrict
                     [
                         'type'    => 'Button',
                         'caption' => 'Show Documentation',
-                        'onClick' => "echo 'https://github.com/bumaas/BlindControl/blob/master/README.md';",
+                        'onClick' => "echo '';",
                         'link'    => true]]];
         } else {
             $form['elements'][] = [

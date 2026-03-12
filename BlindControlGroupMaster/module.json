@@ -1,12 +1,12 @@
 {
   "id": "{1ACD8A0D-5385-6D05-9537-F24C9014FD02}",
-  "name": "Blind Control Group Master",
+  "name": "Rolladensteuerung Gruppe",
   "type": 3,
-  "vendor": "",
+  "vendor": "Hagi",
   "aliases": [],
   "parentRequirements": [],
   "childRequirements": [],
   "implemented": [],
   "prefix": "BLCGM",
-  "url": "https://github.com/bumaas/BlindControl/blob/master/README.md"
+  "url": ""
 }
