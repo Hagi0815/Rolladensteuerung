@@ -66,22 +66,20 @@ class Rolladensteuerung extends IPSModuleStrict
     private const string PROP_CONTACTOPEN2ID                    = 'ContactOpen2ID';
     private const string PROP_CONTACTOPENLEVEL1                 = 'ContactOpenLevel1';
     private const string PROP_CONTACTOPENLEVEL2                 = 'ContactOpenLevel2';
-    private const string PROP_CONTACTOPENSLATSLEVEL1            = 'ContactOpenSlatsLevel1';
-    private const string PROP_CONTACTOPENSLATSLEVEL2            = 'ContactOpenSlatsLevel2';
+    // ContactOpenSlatsLevel entfernt (Lamellenposition nicht mehr verwendet)
 
     // Integer-Kontakt: Kipp-/Öffnen-Zustand (Contact 1)
     private const string PROP_CONTACTOPEN1_USE_INTEGER          = 'ContactOpen1UseInteger';
     private const string PROP_CONTACTOPEN1_TILT_VALUE           = 'ContactOpen1TiltValue';
     private const string PROP_CONTACTOPEN1_OPEN_VALUE           = 'ContactOpen1OpenValue';
     private const string PROP_CONTACTOPEN1_TILT_BLIND_LEVEL     = 'ContactOpen1TiltBlindLevel';
-    private const string PROP_CONTACTOPEN1_TILT_SLATS_LEVEL     = 'ContactOpen1TiltSlatsLevel';
-
+    // TiltSlatsLevel entfernt (Lamellenposition nicht mehr verwendet)
     // Integer-Kontakt: Kipp-/Öffnen-Zustand (Contact 2)
     private const string PROP_CONTACTOPEN2_USE_INTEGER          = 'ContactOpen2UseInteger';
     private const string PROP_CONTACTOPEN2_TILT_VALUE           = 'ContactOpen2TiltValue';
     private const string PROP_CONTACTOPEN2_OPEN_VALUE           = 'ContactOpen2OpenValue';
     private const string PROP_CONTACTOPEN2_TILT_BLIND_LEVEL     = 'ContactOpen2TiltBlindLevel';
-    private const string PROP_CONTACTOPEN2_TILT_SLATS_LEVEL     = 'ContactOpen2TiltSlatsLevel';
+    // TiltSlatsLevel2 entfernt (Lamellenposition nicht mehr verwendet)
     private const string PROP_EMERGENCYCONTACTID                = 'EmergencyContactID';
     private const string PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY = 'ContactsToCloseHaveHigherPriority';
 
@@ -295,9 +293,7 @@ class Rolladensteuerung extends IPSModuleStrict
                     self::PROP_SLATSLEVELLESSBRIGHTNESSSHADOWINGBRIGHTNESS,
                     self::PROP_SLATSLEVELHIGHBRIGHTNESSSHADOWINGBRIGHTNESS,
                     self::PROP_CONTACTCLOSESLATSLEVEL1,
-                    self::PROP_CONTACTCLOSESLATSLEVEL2,
-                    self::PROP_CONTACTOPENSLATSLEVEL1,
-                    self::PROP_CONTACTOPENSLATSLEVEL2
+                    self::PROP_CONTACTCLOSESLATSLEVEL2
                 ];
 
                 foreach ($fields as $field) {
@@ -500,8 +496,6 @@ class Rolladensteuerung extends IPSModuleStrict
             self::PROP_SLATSLEVELHIGHBRIGHTNESSSHADOWINGBRIGHTNESS,
             self::PROP_CONTACTCLOSESLATSLEVEL1,
             self::PROP_CONTACTCLOSESLATSLEVEL2,
-            self::PROP_CONTACTOPENSLATSLEVEL1,
-            self::PROP_CONTACTOPENSLATSLEVEL2,
             'SlatsLevel'
         ];
 
@@ -1111,21 +1105,17 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterPropertyInteger(self::PROP_CONTACTOPEN2ID, 0);
         $this->RegisterPropertyFloat(self::PROP_CONTACTOPENLEVEL1, 0);
         $this->RegisterPropertyFloat(self::PROP_CONTACTOPENLEVEL2, 0);
-        $this->RegisterPropertyFloat(self::PROP_CONTACTOPENSLATSLEVEL1, 0);
-        $this->RegisterPropertyFloat(self::PROP_CONTACTOPENSLATSLEVEL2, 0);
 
         // Integer-Modus fuer Oeffnen-Kontakte (Kipp-/Oeffnen-Zustand)
         $this->RegisterPropertyBoolean(self::PROP_CONTACTOPEN1_USE_INTEGER, false);
         $this->RegisterPropertyInteger(self::PROP_CONTACTOPEN1_TILT_VALUE, 1);
         $this->RegisterPropertyInteger(self::PROP_CONTACTOPEN1_OPEN_VALUE, 2);
         $this->RegisterPropertyFloat(self::PROP_CONTACTOPEN1_TILT_BLIND_LEVEL, 0);
-        $this->RegisterPropertyFloat(self::PROP_CONTACTOPEN1_TILT_SLATS_LEVEL, 0);
 
         $this->RegisterPropertyBoolean(self::PROP_CONTACTOPEN2_USE_INTEGER, false);
         $this->RegisterPropertyInteger(self::PROP_CONTACTOPEN2_TILT_VALUE, 1);
         $this->RegisterPropertyInteger(self::PROP_CONTACTOPEN2_OPEN_VALUE, 2);
         $this->RegisterPropertyFloat(self::PROP_CONTACTOPEN2_TILT_BLIND_LEVEL, 0);
-        $this->RegisterPropertyFloat(self::PROP_CONTACTOPEN2_TILT_SLATS_LEVEL, 0);
 
         //emergency contact
         $this->RegisterPropertyInteger(self::PROP_EMERGENCYCONTACTID, 0);
@@ -1609,9 +1599,7 @@ class Rolladensteuerung extends IPSModuleStrict
                     self::PROP_MINIMUMSHADERELEVANTSLATSLEVEL,
                     self::PROP_MAXIMUMSHADERELEVANTSLATSLEVEL,
                     self::PROP_CONTACTCLOSESLATSLEVEL1,
-                    self::PROP_CONTACTCLOSESLATSLEVEL2,
-                    self::PROP_CONTACTOPENSLATSLEVEL1,
-                    self::PROP_CONTACTOPENSLATSLEVEL2
+                    self::PROP_CONTACTCLOSESLATSLEVEL2
                 ];
 
                 if ($this->ReadPropertyBoolean(self::PROP_ACTIVATEDINDIVIDUALDAYLEVELS)) {
@@ -1885,7 +1873,6 @@ class Rolladensteuerung extends IPSModuleStrict
                 $contact = [
                     'id'         => $id,
                     'blindlevel' => $this->ReadPropertyFloat(constant("self::{$blindLevelKey}{$i}")),
-                    'slatslevel' => $this->ReadPropertyFloat(constant("self::{$slatsLevelKey}{$i}")),
                     'useInteger' => false,
                 ];
 
@@ -1897,7 +1884,6 @@ class Rolladensteuerung extends IPSModuleStrict
                         $contact['tiltValue']       = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}_TILT_VALUE"));
                         $contact['openValue']       = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}_OPEN_VALUE"));
                         $contact['tiltBlindLevel']  = $this->ReadPropertyFloat(constant("self::PROP_CONTACTOPEN{$i}_TILT_BLIND_LEVEL"));
-                        $contact['tiltSlatsLevel']  = $this->ReadPropertyFloat(constant("self::PROP_CONTACTOPEN{$i}_TILT_SLATS_LEVEL"));
                     }
                 }
 
@@ -1913,8 +1899,8 @@ class Rolladensteuerung extends IPSModuleStrict
      *
      * Fuer Integer-Kontakte (useInteger = true) werden drei Zustaende unterschieden:
      *   0 = geschlossen (Kontakt inaktiv)
-     *   1 = gekippt     (Wert >= tiltValue, aber < openValue) -> tiltBlindLevel / tiltSlatsLevel
-     *   2 = geoeffnet   (Wert >= openValue)                   -> blindlevel / slatslevel
+     *   1 = gekippt     (Wert >= tiltValue, aber < openValue) -> tiltBlindLevel
+     *   2 = geoeffnet   (Wert >= openValue)                   -> blindlevel
      *
      * Fuer Boolean-Kontakte wird der bisherige Mechanismus (isContactOpen) verwendet.
      */
@@ -1937,12 +1923,10 @@ class Rolladensteuerung extends IPSModuleStrict
             if ($state === 1) {
                 // Gekippt: spezielle Kippposition verwenden
                 $activeBlindLevel = $contact['tiltBlindLevel'];
-                $activeSlatsLevel = $contact['tiltSlatsLevel'];
                 $stateLabel       = 'gekippt';
             } else {
                 // Geoeffnet: normale Open-Position verwenden
                 $activeBlindLevel = $contact['blindlevel'];
-                $activeSlatsLevel = $contact['slatslevel'];
                 $stateLabel       = 'geoeffnet';
             }
 
@@ -1952,29 +1936,20 @@ class Rolladensteuerung extends IPSModuleStrict
                         $blindPositions['BlindLevel'],
                         $activeBlindLevel
                     ) : min($blindPositions['BlindLevel'], $activeBlindLevel);
-
-                if (isset($this->profileSlatsLevel)) {
-                    $blindPositions['SlatsLevel'] =
-                        $this->isMinMaxReversed($this->profileSlatsLevel['MinValue'], $this->profileSlatsLevel['MaxValue']) ? max(
-                            $blindPositions['SlatsLevel'],
-                            $activeSlatsLevel
-                        ) : min($blindPositions['SlatsLevel'], $activeSlatsLevel);
-                }
             } else {
                 $blindPositions['BlindLevel'] = $activeBlindLevel;
-                $blindPositions['SlatsLevel'] = $activeSlatsLevel;
+                $blindPositions['SlatsLevel'] = null;
             }
 
             $this->Logger_Dbg(
                 __FUNCTION__,
                 sprintf(
-                    'contact %s (#%s): Zustand=%s, value=%s, blindlevel=%.2f, slatslevel=%.2f',
+                    'contact %s (#%s): Zustand=%s, value=%s, blindlevel=%.2f',
                     $propName,
                     $contact['id'],
                     $stateLabel,
                     $this->GetFormattedValue($contact['id']),
-                    $activeBlindLevel,
-                    $activeSlatsLevel
+                    $activeBlindLevel
                 )
             );
         }
@@ -2027,7 +2002,7 @@ class Rolladensteuerung extends IPSModuleStrict
      */
     private function getPositionsOfOpenBlindContact(): ?array
     {
-        $contacts = $this->getDefinedContacts('PROP_CONTACTOPEN', 'PROP_CONTACTOPENLEVEL', 'PROP_CONTACTOPENSLATSLEVEL');
+        $contacts = $this->getDefinedContacts('PROP_CONTACTOPEN', 'PROP_CONTACTOPENLEVEL', 'PROP_CONTACTOPENLEVEL');
         return $this->getBlindPositionsWithHint($contacts);
     }
 
@@ -2051,7 +2026,6 @@ class Rolladensteuerung extends IPSModuleStrict
             $maxState    = max($maxState, $state);
 
             $activeBlindLevel = ($state === 1) ? $contact['tiltBlindLevel'] : $contact['blindlevel'];
-            $activeSlatsLevel = ($state === 1) ? $contact['tiltSlatsLevel'] : $contact['slatslevel'];
 
             if (isset($blindPositions)) {
                 $blindPositions['BlindLevel'] =
@@ -2059,25 +2033,17 @@ class Rolladensteuerung extends IPSModuleStrict
                         $blindPositions['BlindLevel'],
                         $activeBlindLevel
                     ) : min($blindPositions['BlindLevel'], $activeBlindLevel);
-
-                if (isset($this->profileSlatsLevel)) {
-                    $blindPositions['SlatsLevel'] =
-                        $this->isMinMaxReversed($this->profileSlatsLevel['MinValue'], $this->profileSlatsLevel['MaxValue']) ? max(
-                            $blindPositions['SlatsLevel'],
-                            $activeSlatsLevel
-                        ) : min($blindPositions['SlatsLevel'], $activeSlatsLevel);
-                }
             } else {
                 $blindPositions['BlindLevel'] = $activeBlindLevel;
-                $blindPositions['SlatsLevel'] = $activeSlatsLevel;
+                $blindPositions['SlatsLevel'] = null;
             }
 
             $stateLabel = ($state === 1) ? 'gekippt' : 'geoeffnet';
             $this->Logger_Dbg(
                 __FUNCTION__,
                 sprintf(
-                    'contact %s (#%s): Zustand=%s, blindlevel=%.2f, slatslevel=%.2f',
-                    $propName, $contact['id'], $stateLabel, $activeBlindLevel, $activeSlatsLevel
+                    'contact %s (#%s): Zustand=%s, blindlevel=%.2f',
+                    $propName, $contact['id'], $stateLabel, $activeBlindLevel
                 )
             );
         }

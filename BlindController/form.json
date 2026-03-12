@@ -780,29 +780,12 @@
                                         1,
                                         2
                                     ],
-                                    "caption": "Contact 1 ID"
+                                    "caption": "Kontakt 1 ID"
                                 },
-                                {
-                                    "type": "NumberSpinner",
-                                    "name": "ContactOpenLevel1",
-                                    "caption": "Minimum height when the contact is open",
-                                    "digits": "2"
-                                },
-                                {
-                                    "type": "NumberSpinner",
-                                    "name": "ContactOpenSlatsLevel1",
-                                    "caption": "Minimum slats position when the contact is open",
-                                    "digits": "2"
-                                }
-                            ]
-                        },
-                        {
-                            "type": "RowLayout",
-                            "items": [
                                 {
                                     "type": "CheckBox",
                                     "name": "ContactOpen1UseInteger",
-                                    "caption": "Contact 1: Integer-Modus (gekippt/geöffnet)"
+                                    "caption": "Integer-Modus (gekippt/geöffnet)"
                                 },
                                 {
                                     "type": "NumberSpinner",
@@ -812,20 +795,20 @@
                                 },
                                 {
                                     "type": "NumberSpinner",
+                                    "name": "ContactOpen1TiltBlindLevel",
+                                    "caption": "Position bei gekippt",
+                                    "digits": 2
+                                },
+                                {
+                                    "type": "NumberSpinner",
                                     "name": "ContactOpen1OpenValue",
                                     "caption": "Wert = geöffnet",
                                     "digits": 0
                                 },
                                 {
                                     "type": "NumberSpinner",
-                                    "name": "ContactOpen1TiltBlindLevel",
-                                    "caption": "Rollladenposition bei gekippt",
-                                    "digits": 2
-                                },
-                                {
-                                    "type": "NumberSpinner",
-                                    "name": "ContactOpen1TiltSlatsLevel",
-                                    "caption": "Lamellenposition bei gekippt",
+                                    "name": "ContactOpenLevel1",
+                                    "caption": "Position bei geöffnet",
                                     "digits": 2
                                 }
                             ]
@@ -841,29 +824,12 @@
                                         1,
                                         2
                                     ],
-                                    "caption": "Contact 2 ID"
+                                    "caption": "Kontakt 2 ID"
                                 },
-                                {
-                                    "type": "NumberSpinner",
-                                    "name": "ContactOpenLevel2",
-                                    "caption": "Minimum height when the contact is open",
-                                    "digits": "2"
-                                },
-                                {
-                                    "type": "NumberSpinner",
-                                    "name": "ContactOpenSlatsLevel2",
-                                    "caption": "Minimum slats position when the contact is open",
-                                    "digits": "2"
-                                }
-                            ]
-                        },
-                        {
-                            "type": "RowLayout",
-                            "items": [
                                 {
                                     "type": "CheckBox",
                                     "name": "ContactOpen2UseInteger",
-                                    "caption": "Contact 2: Integer-Modus (gekippt/geöffnet)"
+                                    "caption": "Integer-Modus (gekippt/geöffnet)"
                                 },
                                 {
                                     "type": "NumberSpinner",
@@ -873,20 +839,20 @@
                                 },
                                 {
                                     "type": "NumberSpinner",
+                                    "name": "ContactOpen2TiltBlindLevel",
+                                    "caption": "Position bei gekippt",
+                                    "digits": 2
+                                },
+                                {
+                                    "type": "NumberSpinner",
                                     "name": "ContactOpen2OpenValue",
                                     "caption": "Wert = geöffnet",
                                     "digits": 0
                                 },
                                 {
                                     "type": "NumberSpinner",
-                                    "name": "ContactOpen2TiltBlindLevel",
-                                    "caption": "Rollladenposition bei gekippt",
-                                    "digits": 2
-                                },
-                                {
-                                    "type": "NumberSpinner",
-                                    "name": "ContactOpen2TiltSlatsLevel",
-                                    "caption": "Lamellenposition bei gekippt",
+                                    "name": "ContactOpenLevel2",
+                                    "caption": "Position bei geöffnet",
                                     "digits": 2
                                 }
                             ]
