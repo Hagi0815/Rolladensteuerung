@@ -3086,15 +3086,9 @@ class Rolladensteuerung extends IPSModuleStrict
             $countID1 = $this->CountNumberOfPointsWithActionId($scheduleGroup['Points'], 1); //down
             $countID2 = $this->CountNumberOfPointsWithActionId($scheduleGroup['Points'], 2); //up
 
+            // Leere Gruppen (noch keine Zeiten eingetragen) werden übersprungen
             if (($countID1 + $countID2) === 0) {
-                $this->Logger_Dbg(
-                    __FUNCTION__,
-                    sprintf(
-                        'Invalid TimeTable: No Points with ActionID 1 or 2 found. (ScheduleGroup: %s)',
-                        json_encode($scheduleGroup, JSON_THROW_ON_ERROR)
-                    )
-                );
-                return self::STATUS_INST_TIMETABLE_IS_INVALID;
+                continue;
             }
 
             if ($countID2 > 1) {
