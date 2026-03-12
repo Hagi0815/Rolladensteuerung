@@ -3083,20 +3083,22 @@ class Rolladensteuerung extends IPSModuleStrict
         $eventScheduleGroups = IPS_GetEvent($this->ReadPropertyInteger(self::PROP_WEEKLYTIMETABLEEVENTID))['ScheduleGroups'];
 
         foreach ($eventScheduleGroups as $scheduleGroup) {
-            $countID1 = $this->CountNumberOfPointsWithActionId($scheduleGroup['Points'], 1); //down
-            $countID2 = $this->CountNumberOfPointsWithActionId($scheduleGroup['Points'], 2); //up
+            // ActionID 1 = Tag (Rollladen auf) – darf max. einmal vorkommen
+            // ActionID 2 = Nacht (Rollladen zu) – darf mehrfach vorkommen (Mitternacht + Abend)
+            $countID1 = $this->CountNumberOfPointsWithActionId($scheduleGroup['Points'], 1);
+            $countID2 = $this->CountNumberOfPointsWithActionId($scheduleGroup['Points'], 2);
 
             // Leere Gruppen (noch keine Zeiten eingetragen) werden übersprungen
             if (($countID1 + $countID2) === 0) {
                 continue;
             }
 
-            if ($countID2 > 1) {
+            if ($countID1 > 1) {
                 $this->Logger_Dbg(
                     __FUNCTION__,
                     sprintf(
-                        'Invalid TimeTable: More (%s) than one Point with ActionID 2. (ScheduleGroup: %s)',
-                        $countID2,
+                        'Invalid TimeTable: More (%s) than one Point with ActionID 1 (Tag/auf). (ScheduleGroup: %s)',
+                        $countID1,
                         json_encode($scheduleGroup, JSON_THROW_ON_ERROR)
                     )
                 );
@@ -3286,7 +3288,7 @@ class Rolladensteuerung extends IPSModuleStrict
         foreach ($groups as $group) {
             if ($group['Days'] & $weekDay) {
                 foreach ($group['Points'] as $point) {
-                    if ($point['ActionID'] === 2) {
+                    if ($point['ActionID'] === 1) { // ActionID 1 = Tag (auf)
                         return sprintf("%'.02s:%'.02s", $point['Start']['Hour'], $point['Start']['Minute']);
                     }
                 }
@@ -3305,15 +3307,15 @@ class Rolladensteuerung extends IPSModuleStrict
     {
         $weekDay = 2 ** ($weekDay - 1);
 
-        $count = 0;
         foreach ($groups as $group) {
             if ($group['Days'] & $weekDay) {
                 foreach ($group['Points'] as $point) {
-                    if ($point['ActionID'] === 1) {
-                        $count++;
-                        if ($count === 2) {
-                            return sprintf("%'.02s:%'.02s", $point['Start']['Hour'], $point['Start']['Minute']);
+                    if ($point['ActionID'] === 2) { // ActionID 2 = Nacht (zu)
+                        // Mitternachts-Startpunkt (00:00:00) überspringen
+                        if ($point['Start']['Hour'] === 0 && $point['Start']['Minute'] === 0 && $point['Start']['Second'] === 0) {
+                            continue;
                         }
+                        return sprintf("%'.02s:%'.02s", $point['Start']['Hour'], $point['Start']['Minute']);
                     }
                 }
             }
