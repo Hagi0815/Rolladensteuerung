@@ -1,13 +1,13 @@
 {
   "id":            "{7995E8C8-BD15-46A1-8AB6-2B795C33C0C5}",
-  "author":        "bumaas",
-  "name":          "Blind Control",
+  "author":        "Hagi",
+  "name":          "Rolladensteuerung",
   "url":           "",
   "compatibility": {
     "version": "8.1",
     "date":    0
   },
-  "version":       "2.50",
-  "build":         71,
+  "version":       "1",
+  "build":         1,
   "date":          1772439381
 }
