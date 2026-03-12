@@ -319,8 +319,8 @@ Dann werden im Webfront die Bewegungen in Form eines Logfiles dargestellt.
 
 |           Modul            |  Typ   |                  GUID                  |
 |:--------------------------:|:------:|:--------------------------------------:|
-| Rolladensteuerung         | Device | {538F6461-5410-4F4C-91D3-B39122152D56} |
-| Rolladensteuerung Gruppe  | Device | {1ACD8A0D-5385-6D05-9537-F24C9014FD02} |
+| Rolladensteuerung         | Device | {75A3B2A8-5B2D-4CB4-BFF1-319FA3DA1C01} |
+| Rolladensteuerung Gruppe  | Device | {58CBEEC2-C3B6-46E6-8DA2-541774CAE66B} |
 
 ### Spenden
   

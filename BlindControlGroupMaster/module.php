@@ -47,7 +47,7 @@ class BlindControlGroupMaster extends IPSModuleStrict
     /** @noinspection PhpUnused */
     public function GetConfigurationForm(): string
     {
-        $allBlindInstances = IPS_GetInstanceListByModuleID('{538F6461-5410-4F4C-91D3-B39122152D56}');
+        $allBlindInstances = IPS_GetInstanceListByModuleID('{75A3B2A8-5B2D-4CB4-BFF1-319FA3DA1C01}');
         if (empty($allBlindInstances)) {
             $form['elements'][] = [
                 'type'    => 'Label',
