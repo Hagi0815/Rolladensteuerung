@@ -1,6 +1,6 @@
 {
   "id": "{538F6461-5410-4F4C-91D3-B39122152D56}",
-  "name": "Blind Controller",
+  "name": "Rolladensteuerung",
   "type": 3,
   "vendor": "",
   "aliases": [],
@@ -8,5 +8,5 @@
   "childRequirements": [],
   "implemented": [],
   "prefix": "BLC",
-  "url": "https://github.com/bumaas/BlindControl/blob/master/README.md"
+  "url": "https://github.com/Hagi0815/Rolladensteuerung"
 }
