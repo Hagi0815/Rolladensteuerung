@@ -7,7 +7,7 @@ if (function_exists('IPSUtils_Include')) {
 }
 
 /** @noinspection AutoloadingIssuesInspection */
-class BlindController extends IPSModuleStrict
+class Rolladensteuerung extends IPSModuleStrict
 {
     //Status
     private const int STATUS_INST_TIMETABLE_ID_IS_INVALID                                = 201;

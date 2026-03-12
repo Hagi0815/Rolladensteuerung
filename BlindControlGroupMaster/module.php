@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 /** @noinspection AutoloadingIssuesInspection */
-class BlindControlGroupMaster extends IPSModuleStrict
+class RolladensteuerungGruppe extends IPSModuleStrict
 {
     /** @noinspection PhpUnused */
     public function Create(): void
@@ -47,7 +47,7 @@ class BlindControlGroupMaster extends IPSModuleStrict
     /** @noinspection PhpUnused */
     public function GetConfigurationForm(): string
     {
-        $allBlindInstances = IPS_GetInstanceListByModuleID('{75A3B2A8-5B2D-4CB4-BFF1-319FA3DA1C01}');
+        $allBlindInstances = IPS_GetInstanceListByModuleID('{C588F944-0032-411C-9848-3638D019CDB8}');
         if (empty($allBlindInstances)) {
             $form['elements'][] = [
                 'type'    => 'Label',
