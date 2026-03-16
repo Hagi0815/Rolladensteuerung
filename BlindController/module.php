@@ -377,20 +377,28 @@ class Rolladensteuerung extends IPSModuleStrict
                 break;
 
             case EM_UPDATE:
+                // Wochenplan-Schaltpunkt: immer reagieren
+                $this->handleUpdateMessage($SenderID, $Data, false);
+                break;
+
             case VM_UPDATE:
             case VM_CHANGEPROFILEACTION:
-                $this->handleUpdateMessage($SenderID, $Data);
+                // Nur reagieren wenn sich der Wert tatsächlich geändert hat ($Data[1] = true)
+                $this->handleUpdateMessage($SenderID, $Data, true);
                 break;
         }
     }
 
     /**
      * Verarbeitet Aktualisierungen von Variablen und Ereignissen.
+     * @param bool $checkChanged  true = nur reagieren wenn $Data[1] === true (VM_UPDATE),
+     *                            false = immer reagieren (EM_UPDATE)
      */
-    private function handleUpdateMessage(int $SenderID, array $Data): void
+    private function handleUpdateMessage(int $SenderID, array $Data, bool $checkChanged): void
     {
-        // Index 1 enthält bei VM_UPDATE/EM_UPDATE den "Changed"-Status oder Wert-Infos
-        if (($Data[1] ?? null) === false) {
+        // Bei Variablen-Updates: $Data[1] zeigt ob sich der Wert geändert hat
+        // Bei Event-Updates (Wochenplan): immer reagieren
+        if ($checkChanged && ($Data[1] ?? null) === false) {
             return;
         }
 
