@@ -863,6 +863,11 @@
                     "type": "CheckBox",
                     "name": "ContactsToCloseHaveHigherPriority",
                     "caption": "Contacts to close the blind have a higher priority than the ones to open"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "BalconyDoor",
+                    "caption": "Balkontür: Fenstergriff hat immer Vorrang vor Wochenplan und Beschattung"
                 }
             ]
         },

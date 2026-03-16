@@ -82,6 +82,7 @@ class Rolladensteuerung extends IPSModuleStrict
     // TiltSlatsLevel2 entfernt (Lamellenposition nicht mehr verwendet)
     private const string PROP_EMERGENCYCONTACTID                = 'EmergencyContactID';
     private const string PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY = 'ContactsToCloseHaveHigherPriority';
+    private const string PROP_BALCONY_DOOR                      = 'BalconyDoor';
 
     //shadowing, according to sun position
     private const string PROP_ACTIVATORIDSHADOWINGBYSUNPOSITION           = 'ActivatorIDShadowingBySunPosition';
@@ -893,16 +894,28 @@ class Rolladensteuerung extends IPSModuleStrict
 
         // 3. Kontakte prüfen
         if ($positionsContactOpenBlind !== null) {
-            $checkResult = $this->checkContactLimit($positionsAct, $positionsNew, $positionsContactOpenBlind, true);
-            if ($checkResult['modified']) {
-                $bNoMove      = false;
-                $positionsNew = $checkResult['positions'];
-                $Hinweis      = $openBlindHint; // 'Kontakt gekippt' oder 'Kontakt geoeffnet'
-                if ($checkResult['resetDeactivation']) {
-                    $deactivationTimeAuto = 0;
-                }
+            if ($this->ReadPropertyBoolean(self::PROP_BALCONY_DOOR)) {
+                // Balkontür: Fenstergriff erzwingt Position direkt (Vorrang vor Wochenplan und Beschattung)
+                $positionsNew['BlindLevel'] = $positionsContactOpenBlind['BlindLevel'];
+                $positionsNew['SlatsLevel'] = $positionsContactOpenBlind['SlatsLevel'];
+                $bNoMove                    = false;
+                $Hinweis                    = $openBlindHint;
+                $deactivationTimeAuto       = 0;
                 $this->WriteAttributeBoolean(self::ATTR_CONTACT_OPEN, true);
-                $this->Logger_Dbg(__FUNCTION__, $openBlindHint . ' (Open-Logik angewendet)');
+                $this->Logger_Dbg(__FUNCTION__, $openBlindHint . ' (Balkontür: Open-Kontakt erzwingt Position)');
+            } else {
+                // Normalmodus: Kontakt wirkt als Limit
+                $checkResult = $this->checkContactLimit($positionsAct, $positionsNew, $positionsContactOpenBlind, true);
+                if ($checkResult['modified']) {
+                    $bNoMove      = false;
+                    $positionsNew = $checkResult['positions'];
+                    $Hinweis      = $openBlindHint;
+                    if ($checkResult['resetDeactivation']) {
+                        $deactivationTimeAuto = 0;
+                    }
+                    $this->WriteAttributeBoolean(self::ATTR_CONTACT_OPEN, true);
+                    $this->Logger_Dbg(__FUNCTION__, $openBlindHint . ' (Open-Logik angewendet)');
+                }
             }
         } elseif ($positionsContactCloseBlind !== null) {
             $checkResult = $this->checkContactLimit($positionsAct, $positionsNew, $positionsContactCloseBlind, false);
@@ -1107,6 +1120,7 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterPropertyFloat(self::PROP_CONTACTCLOSESLATSLEVEL1, 0);
         $this->RegisterPropertyFloat(self::PROP_CONTACTCLOSESLATSLEVEL2, 0);
         $this->RegisterPropertyBoolean(self::PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY, false);
+        $this->RegisterPropertyBoolean(self::PROP_BALCONY_DOOR, false);
 
         //contacts open
         $this->RegisterPropertyInteger(self::PROP_CONTACTOPEN1ID, 0);
