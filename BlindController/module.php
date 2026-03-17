@@ -1019,16 +1019,29 @@ class Rolladensteuerung extends IPSModuleStrict
      */
     private function applyLightControl(): void
     {
-        $contacts = $this->getDefinedContacts('PROP_CONTACTOPEN', 'PROP_CONTACTOPENLEVEL', 'PROP_CONTACTOPENLEVEL');
-
         foreach ([1, 2] as $i) {
-            $propIdKey = "PROP_CONTACTOPEN{$i}ID";
-            if (!isset($contacts[$propIdKey])) {
+            // Kontakt-ID direkt lesen
+            $contactId = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}ID"));
+            if (!IPS_VariableExists($contactId)) {
                 continue;
             }
 
-            $contact = $contacts[$propIdKey];
-            $state   = $this->getContactState($propIdKey, $contact); // 0=geschlossen, 1=gekippt, 2=geöffnet
+            // Zustand des Kontakts ermitteln (0=geschlossen, 1=gekippt, 2=geöffnet)
+            $useIntProp = constant("self::PROP_CONTACTOPEN{$i}_USE_INTEGER");
+            if ($this->ReadPropertyBoolean($useIntProp)) {
+                $rawValue  = (int)GetValue($contactId);
+                $tiltValue = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}_TILT_VALUE"));
+                $openValue = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}_OPEN_VALUE"));
+                if ($rawValue >= $openValue) {
+                    $state = 2;
+                } elseif ($rawValue >= $tiltValue) {
+                    $state = 1;
+                } else {
+                    $state = 0;
+                }
+            } else {
+                $state = $this->isContactOpen("PROP_CONTACTOPEN{$i}ID") ? 2 : 0;
+            }
 
             $stateKey = match ($state) {
                 0 => 'Closed',
@@ -1037,32 +1050,26 @@ class Rolladensteuerung extends IPSModuleStrict
             };
 
             $enabledProp = "Contact{$i}Light{$stateKey}Enabled";
-            $varProp     = "Contact{$i}Light{$stateKey}Var";
-            $typeProp    = "Contact{$i}Light{$stateKey}Type";
-
             if (!$this->ReadPropertyBoolean($enabledProp)) {
                 continue;
             }
 
-            $varId = $this->ReadPropertyInteger($varProp);
+            $varId = $this->ReadPropertyInteger("Contact{$i}Light{$stateKey}Var");
             if (!IPS_VariableExists($varId)) {
                 continue;
             }
 
-            $type = $this->ReadPropertyString($typeProp);
+            $type = $this->ReadPropertyString("Contact{$i}Light{$stateKey}Type");
 
-            switch ($type) {
-                case 'boolean':
-                    $value = $this->ReadPropertyBoolean("Contact{$i}Light{$stateKey}Bool");
-                    break;
-                case 'string':
-                    $value = $this->ReadPropertyString("Contact{$i}Light{$stateKey}String");
-                    break;
-                case 'float':
-                    $value = $this->ReadPropertyFloat("Contact{$i}Light{$stateKey}Float");
-                    break;
-                default:
-                    continue 2;
+            $value = match ($type) {
+                'boolean' => $this->ReadPropertyBoolean("Contact{$i}Light{$stateKey}Bool"),
+                'string'  => $this->ReadPropertyString("Contact{$i}Light{$stateKey}String"),
+                'float'   => $this->ReadPropertyFloat("Contact{$i}Light{$stateKey}Float"),
+                default   => null,
+            };
+
+            if ($value === null) {
+                continue;
             }
 
             $this->Logger_Dbg(
