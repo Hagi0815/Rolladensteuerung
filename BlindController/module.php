@@ -671,7 +671,7 @@ class Rolladensteuerung extends IPSModuleStrict
         // --- 6. Bewegung ausführen ---
         if (!$bNoMove) {
             $blindLevel = $this->calculateNormalizedLevel($positionsNew['BlindLevel'], $this->profileBlindLevel);
-            $slatsLevel = null;
+            $slatsLevel = -1; // -1 = kein Lamelleenwert
             if (IPS_VariableExists($this->ReadPropertyInteger(self::PROP_SLATSLEVELID))) {
                 $slatsLevel = $this->calculateNormalizedLevel($positionsNew['SlatsLevel'], $this->profileSlatsLevel);
             }
@@ -2777,26 +2777,28 @@ class Rolladensteuerung extends IPSModuleStrict
      * @param string $hint Grund der Bewegung für das Logging.
      * @return bool True, wenn mindestens eine Bewegung erfolgreich eingeleitet wurde.
      */
-    public function MoveBlind(int $percentBlindClose, ?int $percentSlatsClose, int $deactivationTimeAuto, string $hint): bool
+    public function MoveBlind(int $percentBlindClose, int $percentSlatsClose, int $deactivationTimeAuto, string $hint): bool
     {
         if (IPS_GetInstance($this->InstanceID)['InstanceStatus'] !== IS_ACTIVE) {
             return false;
         }
+
+        // -1 = kein Lamelleenwert (nullable nicht von IP-Symcon unterstützt)
+        $slatsClose = ($percentSlatsClose === -1) ? null : $percentSlatsClose;
 
         $this->Logger_Dbg(
             __FUNCTION__,
             sprintf(
                 'percentBlindClose: %s, percentSlatClose: %s, deactivationTimeAuto: %s, hint: %s',
                 $percentBlindClose,
-                $percentSlatsClose ?? 'null',
+                $slatsClose ?? 'null',
                 $deactivationTimeAuto,
                 $hint
             )
         );
 
-
         assert($percentBlindClose >= 0 && $percentBlindClose <= 100);
-        assert(is_null($percentSlatsClose) || ($percentSlatsClose >= 0 && $percentSlatsClose <= 100));
+        assert(is_null($slatsClose) || ($slatsClose >= 0 && $slatsClose <= 100));
 
         // Profile laden für die Umrechnung von Prozent in Aktor-Werte
         $this->profileBlindLevel = $this->GetPresentationInformation(self::PROP_BLINDLEVELID);
@@ -2811,7 +2813,7 @@ class Rolladensteuerung extends IPSModuleStrict
         // Optionale Lamellensteuerung ausführen
         if (IPS_VariableExists($this->ReadPropertyInteger(self::PROP_SLATSLEVELID))) {
             $this->profileSlatsLevel = $this->GetPresentationInformation(self::PROP_SLATSLEVELID);
-            $moveSlatsOk             = $this->MoveToPosition(self::PROP_SLATSLEVELID, $percentSlatsClose, $tsAutomatic, $deactivationTimeAuto, $hint);
+            $moveSlatsOk             = $this->MoveToPosition(self::PROP_SLATSLEVELID, $slatsClose, $tsAutomatic, $deactivationTimeAuto, $hint);
 
             return $moveBladeOk || $moveSlatsOk;
         }
