@@ -680,11 +680,12 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         // --- 7. Status-Meldung aktualisieren ---
+        // Anzeige: 0% = geschlossen, 100% = geöffnet (invertiert zu percentClose)
         $statusMsg = date('H:i:s') . ' | ';
         $statusMsg .= $Hinweis !== '' ? $Hinweis : ($bNoMove ? 'Keine Bewegung (Sperre)' : 'Keine Änderung');
-        $statusMsg .= sprintf(' | Pos: %d%%', $blindLevel);
+        $statusMsg .= sprintf(' | Öffnung: %d%%', 100 - $blindLevel);
         if ($slatsLevel !== -1) {
-            $statusMsg .= sprintf(' / %d%%', $slatsLevel);
+            $statusMsg .= sprintf(' / %d%%', 100 - $slatsLevel);
         }
         $this->SetValue(self::VAR_IDENT_LAST_MESSAGE, $statusMsg);
 
