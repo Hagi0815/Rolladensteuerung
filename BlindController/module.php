@@ -780,7 +780,10 @@ class Rolladensteuerung extends IPSModuleStrict
             $this->MoveBlind($blindLevel, $slatsLevel, $deactivationTimeAuto, $Hinweis);
         }
 
-        // --- 7. Status-Meldung aktualisieren ---
+        // --- 7. Lichtsteuerung ausführen (nach Rollladenbewegung) ---
+        $this->applyLightControl();
+
+        // --- 8. Status-Meldung aktualisieren ---
         // Anzeige: 0% = geschlossen, 100% = geöffnet (invertiert zu percentClose)
         $statusMsg = date('H:i:s') . ' | ';
         $statusMsg .= $Hinweis !== '' ? $Hinweis : ($bNoMove ? 'Keine Bewegung (Sperre)' : 'Keine Änderung');
@@ -1058,9 +1061,6 @@ class Rolladensteuerung extends IPSModuleStrict
             'hint'                 => $Hinweis,
             'bEmergency'           => false
         ];
-
-        // Lichtsteuerung: Für jeden Öffnen-Kontakt den Zustand ermitteln und ggf. Licht schalten
-        $this->applyLightControl();
 
         $this->Logger_Dbg(__FUNCTION__, 'Result: ' . json_encode($result, JSON_THROW_ON_ERROR));
         return $result;
