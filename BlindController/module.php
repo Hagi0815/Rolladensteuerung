@@ -679,6 +679,15 @@ class Rolladensteuerung extends IPSModuleStrict
             $this->MoveBlind($blindLevel, $slatsLevel, $deactivationTimeAuto, $Hinweis);
         }
 
+        // --- 7. Status-Meldung aktualisieren ---
+        $statusMsg = date('H:i:s') . ' | ';
+        $statusMsg .= $Hinweis !== '' ? $Hinweis : ($bNoMove ? 'Keine Bewegung (Sperre)' : 'Keine Änderung');
+        $statusMsg .= sprintf(' | Pos: %d%%', $positionsNew['BlindLevel']);
+        if ($positionsNew['SlatsLevel'] !== null) {
+            $statusMsg .= sprintf(' / %d%%', $positionsNew['SlatsLevel']);
+        }
+        $this->SetValue(self::VAR_IDENT_LAST_MESSAGE, $statusMsg);
+
         //im Notfall wird die Automatik NICHT automatisch deaktiviert – nur Benutzer/Boolean darf deaktivieren
         // (Notfall öffnet den Rollladen, aber das Modul bleibt aktiv)
 
