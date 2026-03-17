@@ -887,7 +887,7 @@
                                     { "caption": "String",  "value": "string"  },
                                     { "caption": "Float",   "value": "float"   }
                                 ]},
-                                { "type": "CheckBox",     "name": "Contact1LightClosedBool",   "caption": "Wert (Bool)"   },
+                                { "type": "Select", "name": "Contact1LightClosedBool", "caption": "Wert (Bool)", "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] },
                                 { "type": "ValidationTextBox", "name": "Contact1LightClosedString", "caption": "Wert (String)" },
                                 { "type": "NumberSpinner", "name": "Contact1LightClosedFloat",  "caption": "Wert (Float)", "digits": 2 }
                             ]
@@ -902,7 +902,7 @@
                                     { "caption": "String",  "value": "string"  },
                                     { "caption": "Float",   "value": "float"   }
                                 ]},
-                                { "type": "CheckBox",     "name": "Contact1LightTiltBool",   "caption": "Wert (Bool)"   },
+                                { "type": "Select", "name": "Contact1LightTiltBool", "caption": "Wert (Bool)", "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] },
                                 { "type": "ValidationTextBox", "name": "Contact1LightTiltString", "caption": "Wert (String)" },
                                 { "type": "NumberSpinner", "name": "Contact1LightTiltFloat",  "caption": "Wert (Float)", "digits": 2 }
                             ]
@@ -917,7 +917,7 @@
                                     { "caption": "String",  "value": "string"  },
                                     { "caption": "Float",   "value": "float"   }
                                 ]},
-                                { "type": "CheckBox",     "name": "Contact1LightOpenBool",   "caption": "Wert (Bool)"   },
+                                { "type": "Select", "name": "Contact1LightOpenBool", "caption": "Wert (Bool)", "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] },
                                 { "type": "ValidationTextBox", "name": "Contact1LightOpenString", "caption": "Wert (String)" },
                                 { "type": "NumberSpinner", "name": "Contact1LightOpenFloat",  "caption": "Wert (Float)", "digits": 2 }
                             ]
@@ -942,7 +942,7 @@
                                     { "caption": "String",  "value": "string"  },
                                     { "caption": "Float",   "value": "float"   }
                                 ]},
-                                { "type": "CheckBox",     "name": "Contact2LightClosedBool",   "caption": "Wert (Bool)"   },
+                                { "type": "Select", "name": "Contact2LightClosedBool", "caption": "Wert (Bool)", "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] },
                                 { "type": "ValidationTextBox", "name": "Contact2LightClosedString", "caption": "Wert (String)" },
                                 { "type": "NumberSpinner", "name": "Contact2LightClosedFloat",  "caption": "Wert (Float)", "digits": 2 }
                             ]
@@ -957,7 +957,7 @@
                                     { "caption": "String",  "value": "string"  },
                                     { "caption": "Float",   "value": "float"   }
                                 ]},
-                                { "type": "CheckBox",     "name": "Contact2LightTiltBool",   "caption": "Wert (Bool)"   },
+                                { "type": "Select", "name": "Contact2LightTiltBool", "caption": "Wert (Bool)", "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] },
                                 { "type": "ValidationTextBox", "name": "Contact2LightTiltString", "caption": "Wert (String)" },
                                 { "type": "NumberSpinner", "name": "Contact2LightTiltFloat",  "caption": "Wert (Float)", "digits": 2 }
                             ]
@@ -972,7 +972,7 @@
                                     { "caption": "String",  "value": "string"  },
                                     { "caption": "Float",   "value": "float"   }
                                 ]},
-                                { "type": "CheckBox",     "name": "Contact2LightOpenBool",   "caption": "Wert (Bool)"   },
+                                { "type": "Select", "name": "Contact2LightOpenBool", "caption": "Wert (Bool)", "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] },
                                 { "type": "ValidationTextBox", "name": "Contact2LightOpenString", "caption": "Wert (String)" },
                                 { "type": "NumberSpinner", "name": "Contact2LightOpenFloat",  "caption": "Wert (Float)", "digits": 2 }
                             ]
