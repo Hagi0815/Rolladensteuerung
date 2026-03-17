@@ -693,10 +693,12 @@ class Rolladensteuerung extends IPSModuleStrict
         $brightness          = null;
         $isDayByDayDetection = $this->getIsDayByDayDetection($brightness, $currentBlindLevel);
 
-        if ($isDayByDayDetection === null) {
-            $isDay = $isDayByTimeSchedule;
+        // Priorität: 1. DayDetection (Helligkeit/IsDayIndikator/Sonnenuntergang)
+        //            2. Wochenplan (nur Fallback wenn kein DayDetection-Sensor konfiguriert)
+        if ($isDayByDayDetection !== null) {
+            $isDay = $isDayByDayDetection; // Sonnenuntergang/Helligkeit hat Vorrang
         } else {
-            $isDay = $isDayByTimeSchedule && $isDayByDayDetection;
+            $isDay = $isDayByTimeSchedule; // Fallback: Wochenplan
         }
 
         return [
