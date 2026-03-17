@@ -873,110 +873,116 @@
                     "type": "ExpansionPanel",
                     "caption": "Lichtsteuerung Kontakt 1 (optional)",
                     "items": [
-                        {
-                            "type": "Label",
-                            "caption": "Für jeden Zustand des Kontakts 1 kann eine Variable gesetzt werden."
-                        },
-                        {
-                            "type": "RowLayout",
-                            "items": [
-                                { "type": "CheckBox", "name": "Contact1LightClosedEnabled", "caption": "Geschlossen: aktiv", "onChange": "IPS_RequestAction($id, 'Contact1LightClosedEnabled', $Contact1LightClosedEnabled);" },
-                                { "type": "SelectVariable", "name": "Contact1LightClosedVar", "caption": "Variable", "validVariableTypes": [0, 3, 2], "visible": false },
-                                { "type": "Select", "name": "Contact1LightClosedType", "caption": "Typ", "visible": false, "onChange": "IPS_RequestAction($id, 'Contact1LightClosedType', $Contact1LightClosedType);", "options": [
-                                    { "caption": "Boolean", "value": "boolean" },
-                                    { "caption": "String",  "value": "string"  },
-                                    { "caption": "Float",   "value": "float"   }
-                                ]},
-                                { "type": "Select", "name": "Contact1LightClosedBool", "caption": "Wert (Bool)", "visible": false, "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] },
-                                { "type": "ValidationTextBox", "name": "Contact1LightClosedString", "caption": "Wert (String)", "visible": false },
-                                { "type": "NumberSpinner", "name": "Contact1LightClosedFloat", "caption": "Wert (Float)", "digits": 2, "visible": false }
-                            ]
-                        },
-                        {
-                            "type": "RowLayout",
-                            "items": [
-                                { "type": "CheckBox", "name": "Contact1LightTiltEnabled", "caption": "Gekippt: aktiv", "onChange": "IPS_RequestAction($id, 'Contact1LightTiltEnabled', $Contact1LightTiltEnabled);" },
-                                { "type": "SelectVariable", "name": "Contact1LightTiltVar", "caption": "Variable", "validVariableTypes": [0, 3, 2], "visible": false },
-                                { "type": "Select", "name": "Contact1LightTiltType", "caption": "Typ", "visible": false, "onChange": "IPS_RequestAction($id, 'Contact1LightTiltType', $Contact1LightTiltType);", "options": [
-                                    { "caption": "Boolean", "value": "boolean" },
-                                    { "caption": "String",  "value": "string"  },
-                                    { "caption": "Float",   "value": "float"   }
-                                ]},
-                                { "type": "Select", "name": "Contact1LightTiltBool", "caption": "Wert (Bool)", "visible": false, "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] },
-                                { "type": "ValidationTextBox", "name": "Contact1LightTiltString", "caption": "Wert (String)", "visible": false },
-                                { "type": "NumberSpinner", "name": "Contact1LightTiltFloat", "caption": "Wert (Float)", "digits": 2, "visible": false }
-                            ]
-                        },
-                        {
-                            "type": "RowLayout",
-                            "items": [
-                                { "type": "CheckBox", "name": "Contact1LightOpenEnabled", "caption": "Geöffnet: aktiv", "onChange": "IPS_RequestAction($id, 'Contact1LightOpenEnabled', $Contact1LightOpenEnabled);" },
-                                { "type": "SelectVariable", "name": "Contact1LightOpenVar", "caption": "Variable", "validVariableTypes": [0, 3, 2], "visible": false },
-                                { "type": "Select", "name": "Contact1LightOpenType", "caption": "Typ", "visible": false, "onChange": "IPS_RequestAction($id, 'Contact1LightOpenType', $Contact1LightOpenType);", "options": [
-                                    { "caption": "Boolean", "value": "boolean" },
-                                    { "caption": "String",  "value": "string"  },
-                                    { "caption": "Float",   "value": "float"   }
-                                ]},
-                                { "type": "Select", "name": "Contact1LightOpenBool", "caption": "Wert (Bool)", "visible": false, "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] },
-                                { "type": "ValidationTextBox", "name": "Contact1LightOpenString", "caption": "Wert (String)", "visible": false },
-                                { "type": "NumberSpinner", "name": "Contact1LightOpenFloat", "caption": "Wert (Float)", "digits": 2, "visible": false }
-                            ]
-                        }
+                        { "type": "Label", "caption": "Für jeden Zustand des Kontakts 1 kann eine Variable gesetzt werden." },
+
+                        { "type": "RowLayout", "items": [
+                            { "type": "CheckBox", "name": "Contact1LightClosedEnabled", "caption": "Geschlossen: aktiv", "onChange": "IPS_RequestAction($id, 'Contact1LightClosedEnabled', $Contact1LightClosedEnabled);" },
+                            { "type": "SelectVariable", "name": "Contact1LightClosedVar", "caption": "Variable", "validVariableTypes": [0, 3, 2], "visible": false },
+                            { "type": "Select", "name": "Contact1LightClosedType", "caption": "Typ", "visible": false, "onChange": "IPS_RequestAction($id, 'Contact1LightClosedType', $Contact1LightClosedType);", "options": [
+                                { "caption": "Boolean", "value": "boolean" }, { "caption": "String", "value": "string" }, { "caption": "Float", "value": "float" }
+                            ]}
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "Select", "name": "Contact1LightClosedBool", "caption": "Wert", "visible": false, "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] }
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "ValidationTextBox", "name": "Contact1LightClosedString", "caption": "Wert", "visible": false }
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "NumberSpinner", "name": "Contact1LightClosedFloat", "caption": "Wert", "digits": 2, "visible": false }
+                        ]},
+
+                        { "type": "RowLayout", "items": [
+                            { "type": "CheckBox", "name": "Contact1LightTiltEnabled", "caption": "Gekippt: aktiv", "onChange": "IPS_RequestAction($id, 'Contact1LightTiltEnabled', $Contact1LightTiltEnabled);" },
+                            { "type": "SelectVariable", "name": "Contact1LightTiltVar", "caption": "Variable", "validVariableTypes": [0, 3, 2], "visible": false },
+                            { "type": "Select", "name": "Contact1LightTiltType", "caption": "Typ", "visible": false, "onChange": "IPS_RequestAction($id, 'Contact1LightTiltType', $Contact1LightTiltType);", "options": [
+                                { "caption": "Boolean", "value": "boolean" }, { "caption": "String", "value": "string" }, { "caption": "Float", "value": "float" }
+                            ]}
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "Select", "name": "Contact1LightTiltBool", "caption": "Wert", "visible": false, "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] }
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "ValidationTextBox", "name": "Contact1LightTiltString", "caption": "Wert", "visible": false }
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "NumberSpinner", "name": "Contact1LightTiltFloat", "caption": "Wert", "digits": 2, "visible": false }
+                        ]},
+
+                        { "type": "RowLayout", "items": [
+                            { "type": "CheckBox", "name": "Contact1LightOpenEnabled", "caption": "Geöffnet: aktiv", "onChange": "IPS_RequestAction($id, 'Contact1LightOpenEnabled', $Contact1LightOpenEnabled);" },
+                            { "type": "SelectVariable", "name": "Contact1LightOpenVar", "caption": "Variable", "validVariableTypes": [0, 3, 2], "visible": false },
+                            { "type": "Select", "name": "Contact1LightOpenType", "caption": "Typ", "visible": false, "onChange": "IPS_RequestAction($id, 'Contact1LightOpenType', $Contact1LightOpenType);", "options": [
+                                { "caption": "Boolean", "value": "boolean" }, { "caption": "String", "value": "string" }, { "caption": "Float", "value": "float" }
+                            ]}
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "Select", "name": "Contact1LightOpenBool", "caption": "Wert", "visible": false, "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] }
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "ValidationTextBox", "name": "Contact1LightOpenString", "caption": "Wert", "visible": false }
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "NumberSpinner", "name": "Contact1LightOpenFloat", "caption": "Wert", "digits": 2, "visible": false }
+                        ]}
                     ]
                 },
                 {
                     "type": "ExpansionPanel",
                     "caption": "Lichtsteuerung Kontakt 2 (optional)",
                     "items": [
-                        {
-                            "type": "Label",
-                            "caption": "Für jeden Zustand des Kontakts 2 kann eine Variable gesetzt werden."
-                        },
-                        {
-                            "type": "RowLayout",
-                            "items": [
-                                { "type": "CheckBox", "name": "Contact2LightClosedEnabled", "caption": "Geschlossen: aktiv", "onChange": "IPS_RequestAction($id, 'Contact2LightClosedEnabled', $Contact2LightClosedEnabled);" },
-                                { "type": "SelectVariable", "name": "Contact2LightClosedVar", "caption": "Variable", "validVariableTypes": [0, 3, 2], "visible": false },
-                                { "type": "Select", "name": "Contact2LightClosedType", "caption": "Typ", "visible": false, "onChange": "IPS_RequestAction($id, 'Contact2LightClosedType', $Contact2LightClosedType);", "options": [
-                                    { "caption": "Boolean", "value": "boolean" },
-                                    { "caption": "String",  "value": "string"  },
-                                    { "caption": "Float",   "value": "float"   }
-                                ]},
-                                { "type": "Select", "name": "Contact2LightClosedBool", "caption": "Wert (Bool)", "visible": false, "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] },
-                                { "type": "ValidationTextBox", "name": "Contact2LightClosedString", "caption": "Wert (String)", "visible": false },
-                                { "type": "NumberSpinner", "name": "Contact2LightClosedFloat", "caption": "Wert (Float)", "digits": 2, "visible": false }
-                            ]
-                        },
-                        {
-                            "type": "RowLayout",
-                            "items": [
-                                { "type": "CheckBox", "name": "Contact2LightTiltEnabled", "caption": "Gekippt: aktiv", "onChange": "IPS_RequestAction($id, 'Contact2LightTiltEnabled', $Contact2LightTiltEnabled);" },
-                                { "type": "SelectVariable", "name": "Contact2LightTiltVar", "caption": "Variable", "validVariableTypes": [0, 3, 2], "visible": false },
-                                { "type": "Select", "name": "Contact2LightTiltType", "caption": "Typ", "visible": false, "onChange": "IPS_RequestAction($id, 'Contact2LightTiltType', $Contact2LightTiltType);", "options": [
-                                    { "caption": "Boolean", "value": "boolean" },
-                                    { "caption": "String",  "value": "string"  },
-                                    { "caption": "Float",   "value": "float"   }
-                                ]},
-                                { "type": "Select", "name": "Contact2LightTiltBool", "caption": "Wert (Bool)", "visible": false, "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] },
-                                { "type": "ValidationTextBox", "name": "Contact2LightTiltString", "caption": "Wert (String)", "visible": false },
-                                { "type": "NumberSpinner", "name": "Contact2LightTiltFloat", "caption": "Wert (Float)", "digits": 2, "visible": false }
-                            ]
-                        },
-                        {
-                            "type": "RowLayout",
-                            "items": [
-                                { "type": "CheckBox", "name": "Contact2LightOpenEnabled", "caption": "Geöffnet: aktiv", "onChange": "IPS_RequestAction($id, 'Contact2LightOpenEnabled', $Contact2LightOpenEnabled);" },
-                                { "type": "SelectVariable", "name": "Contact2LightOpenVar", "caption": "Variable", "validVariableTypes": [0, 3, 2], "visible": false },
-                                { "type": "Select", "name": "Contact2LightOpenType", "caption": "Typ", "visible": false, "onChange": "IPS_RequestAction($id, 'Contact2LightOpenType', $Contact2LightOpenType);", "options": [
-                                    { "caption": "Boolean", "value": "boolean" },
-                                    { "caption": "String",  "value": "string"  },
-                                    { "caption": "Float",   "value": "float"   }
-                                ]},
-                                { "type": "Select", "name": "Contact2LightOpenBool", "caption": "Wert (Bool)", "visible": false, "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] },
-                                { "type": "ValidationTextBox", "name": "Contact2LightOpenString", "caption": "Wert (String)", "visible": false },
-                                { "type": "NumberSpinner", "name": "Contact2LightOpenFloat", "caption": "Wert (Float)", "digits": 2, "visible": false }
-                            ]
-                        }
+                        { "type": "Label", "caption": "Für jeden Zustand des Kontakts 2 kann eine Variable gesetzt werden." },
+
+                        { "type": "RowLayout", "items": [
+                            { "type": "CheckBox", "name": "Contact2LightClosedEnabled", "caption": "Geschlossen: aktiv", "onChange": "IPS_RequestAction($id, 'Contact2LightClosedEnabled', $Contact2LightClosedEnabled);" },
+                            { "type": "SelectVariable", "name": "Contact2LightClosedVar", "caption": "Variable", "validVariableTypes": [0, 3, 2], "visible": false },
+                            { "type": "Select", "name": "Contact2LightClosedType", "caption": "Typ", "visible": false, "onChange": "IPS_RequestAction($id, 'Contact2LightClosedType', $Contact2LightClosedType);", "options": [
+                                { "caption": "Boolean", "value": "boolean" }, { "caption": "String", "value": "string" }, { "caption": "Float", "value": "float" }
+                            ]}
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "Select", "name": "Contact2LightClosedBool", "caption": "Wert", "visible": false, "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] }
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "ValidationTextBox", "name": "Contact2LightClosedString", "caption": "Wert", "visible": false }
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "NumberSpinner", "name": "Contact2LightClosedFloat", "caption": "Wert", "digits": 2, "visible": false }
+                        ]},
+
+                        { "type": "RowLayout", "items": [
+                            { "type": "CheckBox", "name": "Contact2LightTiltEnabled", "caption": "Gekippt: aktiv", "onChange": "IPS_RequestAction($id, 'Contact2LightTiltEnabled', $Contact2LightTiltEnabled);" },
+                            { "type": "SelectVariable", "name": "Contact2LightTiltVar", "caption": "Variable", "validVariableTypes": [0, 3, 2], "visible": false },
+                            { "type": "Select", "name": "Contact2LightTiltType", "caption": "Typ", "visible": false, "onChange": "IPS_RequestAction($id, 'Contact2LightTiltType', $Contact2LightTiltType);", "options": [
+                                { "caption": "Boolean", "value": "boolean" }, { "caption": "String", "value": "string" }, { "caption": "Float", "value": "float" }
+                            ]}
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "Select", "name": "Contact2LightTiltBool", "caption": "Wert", "visible": false, "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] }
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "ValidationTextBox", "name": "Contact2LightTiltString", "caption": "Wert", "visible": false }
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "NumberSpinner", "name": "Contact2LightTiltFloat", "caption": "Wert", "digits": 2, "visible": false }
+                        ]},
+
+                        { "type": "RowLayout", "items": [
+                            { "type": "CheckBox", "name": "Contact2LightOpenEnabled", "caption": "Geöffnet: aktiv", "onChange": "IPS_RequestAction($id, 'Contact2LightOpenEnabled', $Contact2LightOpenEnabled);" },
+                            { "type": "SelectVariable", "name": "Contact2LightOpenVar", "caption": "Variable", "validVariableTypes": [0, 3, 2], "visible": false },
+                            { "type": "Select", "name": "Contact2LightOpenType", "caption": "Typ", "visible": false, "onChange": "IPS_RequestAction($id, 'Contact2LightOpenType', $Contact2LightOpenType);", "options": [
+                                { "caption": "Boolean", "value": "boolean" }, { "caption": "String", "value": "string" }, { "caption": "Float", "value": "float" }
+                            ]}
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "Select", "name": "Contact2LightOpenBool", "caption": "Wert", "visible": false, "options": [{ "caption": "true", "value": 1 }, { "caption": "false", "value": 0 }] }
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "ValidationTextBox", "name": "Contact2LightOpenString", "caption": "Wert", "visible": false }
+                        ]},
+                        { "type": "RowLayout", "items": [
+                            { "type": "NumberSpinner", "name": "Contact2LightOpenFloat", "caption": "Wert", "digits": 2, "visible": false }
+                        ]}
                     ]
                 }
             ]
