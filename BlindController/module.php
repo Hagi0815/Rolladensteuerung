@@ -297,6 +297,16 @@ class Rolladensteuerung extends IPSModuleStrict
                 break;
 
             default:
+                // Lichtsteuerung: Enabled oder Typ geändert → Sichtbarkeit aktualisieren
+                foreach ([1, 2] as $i) {
+                    foreach (['Closed', 'Tilt', 'Open'] as $state) {
+                        if ($Ident === "Contact{$i}Light{$state}Enabled"
+                            || $Ident === "Contact{$i}Light{$state}Type") {
+                            $this->updateLightFieldVisibility($i, $state);
+                            return;
+                        }
+                    }
+                }
                 trigger_error(sprintf('Instance %s: Unknown Ident %s', $this->InstanceID, $Ident));
         }
     }
@@ -332,6 +342,22 @@ class Rolladensteuerung extends IPSModuleStrict
      *
      * @return void
      */
+    /**
+     * Aktualisiert die Sichtbarkeit der Wert-Felder für die Lichtsteuerung
+     * basierend auf dem aktivierten Zustand und dem gewählten Typ.
+     */
+    private function updateLightFieldVisibility(int $contactIndex, string $state): void
+    {
+        $enabled = $this->ReadPropertyBoolean("Contact{$contactIndex}Light{$state}Enabled");
+        $type    = $this->ReadPropertyString("Contact{$contactIndex}Light{$state}Type");
+
+        $this->UpdateFormField("Contact{$contactIndex}Light{$state}Bool",   'visible', $enabled && $type === 'boolean');
+        $this->UpdateFormField("Contact{$contactIndex}Light{$state}String", 'visible', $enabled && $type === 'string');
+        $this->UpdateFormField("Contact{$contactIndex}Light{$state}Float",  'visible', $enabled && $type === 'float');
+        $this->UpdateFormField("Contact{$contactIndex}Light{$state}Var",    'visible', $enabled);
+        $this->UpdateFormField("Contact{$contactIndex}Light{$state}Type",   'visible', $enabled);
+    }
+
     private function updateFormVisibility(string $Ident, mixed $Value): void
     {
         $showNotUsed = $this->ReadPropertyBoolean(self::PROP_SHOWNOTUSEDELEMENTS);
@@ -518,6 +544,19 @@ class Rolladensteuerung extends IPSModuleStrict
         $form['elements'] = array_merge($elements, $form['elements']);
 
         $this->SetVisibilityOfNotUsedElements($form);
+
+        // Sichtbarkeit der Lichtsteuerungsfelder beim Laden des Formulars setzen
+        foreach ([1, 2] as $i) {
+            foreach (['Closed', 'Tilt', 'Open'] as $state) {
+                $enabled = $this->ReadPropertyBoolean("Contact{$i}Light{$state}Enabled");
+                $type    = $this->ReadPropertyString("Contact{$i}Light{$state}Type");
+                $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}Var",    'visible', $enabled);
+                $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}Type",   'visible', $enabled);
+                $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}Bool",   'visible', $enabled && $type === 'boolean');
+                $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}String", 'visible', $enabled && $type === 'string');
+                $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}Float",  'visible', $enabled && $type === 'float');
+            }
+        }
 
         $this->SendDebug('Form', json_encode($form, JSON_THROW_ON_ERROR), 0);
         return json_encode($form, JSON_THROW_ON_ERROR);
@@ -1062,7 +1101,7 @@ class Rolladensteuerung extends IPSModuleStrict
             $type = $this->ReadPropertyString("Contact{$i}Light{$stateKey}Type");
 
             $value = match ($type) {
-                'boolean' => $this->ReadPropertyBoolean("Contact{$i}Light{$stateKey}Bool"),
+                'boolean' => (bool)$this->ReadPropertyInteger("Contact{$i}Light{$stateKey}Bool"),
                 'string'  => $this->ReadPropertyString("Contact{$i}Light{$stateKey}String"),
                 'float'   => $this->ReadPropertyFloat("Contact{$i}Light{$stateKey}Float"),
                 default   => null,
@@ -1283,7 +1322,7 @@ class Rolladensteuerung extends IPSModuleStrict
                 $this->RegisterPropertyBoolean("Contact{$i}Light{$state}Enabled", false);
                 $this->RegisterPropertyInteger("Contact{$i}Light{$state}Var", 0);
                 $this->RegisterPropertyString("Contact{$i}Light{$state}Type", 'boolean');
-                $this->RegisterPropertyBoolean("Contact{$i}Light{$state}Bool", false);
+                $this->RegisterPropertyInteger("Contact{$i}Light{$state}Bool", 1); // 1=true, 0=false
                 $this->RegisterPropertyString("Contact{$i}Light{$state}String", '');
                 $this->RegisterPropertyFloat("Contact{$i}Light{$state}Float", 0.0);
             }
