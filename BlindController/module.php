@@ -80,6 +80,50 @@ class Rolladensteuerung extends IPSModuleStrict
     private const string PROP_CONTACTOPEN2_OPEN_VALUE           = 'ContactOpen2OpenValue';
     private const string PROP_CONTACTOPEN2_TILT_BLIND_LEVEL     = 'ContactOpen2TiltBlindLevel';
     // TiltSlatsLevel2 entfernt (Lamellenposition nicht mehr verwendet)
+
+    // Lichtsteuerung bei Kontakten (Kontakt 1: geschlossen/gekippt/geöffnet)
+    private const string PROP_CONTACT1_LIGHT_CLOSED_ENABLED     = 'Contact1LightClosedEnabled';
+    private const string PROP_CONTACT1_LIGHT_CLOSED_VAR         = 'Contact1LightClosedVar';
+    private const string PROP_CONTACT1_LIGHT_CLOSED_TYPE        = 'Contact1LightClosedType';
+    private const string PROP_CONTACT1_LIGHT_CLOSED_BOOL        = 'Contact1LightClosedBool';
+    private const string PROP_CONTACT1_LIGHT_CLOSED_STRING      = 'Contact1LightClosedString';
+    private const string PROP_CONTACT1_LIGHT_CLOSED_FLOAT       = 'Contact1LightClosedFloat';
+
+    private const string PROP_CONTACT1_LIGHT_TILT_ENABLED       = 'Contact1LightTiltEnabled';
+    private const string PROP_CONTACT1_LIGHT_TILT_VAR           = 'Contact1LightTiltVar';
+    private const string PROP_CONTACT1_LIGHT_TILT_TYPE          = 'Contact1LightTiltType';
+    private const string PROP_CONTACT1_LIGHT_TILT_BOOL          = 'Contact1LightTiltBool';
+    private const string PROP_CONTACT1_LIGHT_TILT_STRING        = 'Contact1LightTiltString';
+    private const string PROP_CONTACT1_LIGHT_TILT_FLOAT         = 'Contact1LightTiltFloat';
+
+    private const string PROP_CONTACT1_LIGHT_OPEN_ENABLED       = 'Contact1LightOpenEnabled';
+    private const string PROP_CONTACT1_LIGHT_OPEN_VAR           = 'Contact1LightOpenVar';
+    private const string PROP_CONTACT1_LIGHT_OPEN_TYPE          = 'Contact1LightOpenType';
+    private const string PROP_CONTACT1_LIGHT_OPEN_BOOL          = 'Contact1LightOpenBool';
+    private const string PROP_CONTACT1_LIGHT_OPEN_STRING        = 'Contact1LightOpenString';
+    private const string PROP_CONTACT1_LIGHT_OPEN_FLOAT         = 'Contact1LightOpenFloat';
+
+    // Lichtsteuerung bei Kontakten (Kontakt 2: geschlossen/gekippt/geöffnet)
+    private const string PROP_CONTACT2_LIGHT_CLOSED_ENABLED     = 'Contact2LightClosedEnabled';
+    private const string PROP_CONTACT2_LIGHT_CLOSED_VAR         = 'Contact2LightClosedVar';
+    private const string PROP_CONTACT2_LIGHT_CLOSED_TYPE        = 'Contact2LightClosedType';
+    private const string PROP_CONTACT2_LIGHT_CLOSED_BOOL        = 'Contact2LightClosedBool';
+    private const string PROP_CONTACT2_LIGHT_CLOSED_STRING      = 'Contact2LightClosedString';
+    private const string PROP_CONTACT2_LIGHT_CLOSED_FLOAT       = 'Contact2LightClosedFloat';
+
+    private const string PROP_CONTACT2_LIGHT_TILT_ENABLED       = 'Contact2LightTiltEnabled';
+    private const string PROP_CONTACT2_LIGHT_TILT_VAR           = 'Contact2LightTiltVar';
+    private const string PROP_CONTACT2_LIGHT_TILT_TYPE          = 'Contact2LightTiltType';
+    private const string PROP_CONTACT2_LIGHT_TILT_BOOL          = 'Contact2LightTiltBool';
+    private const string PROP_CONTACT2_LIGHT_TILT_STRING        = 'Contact2LightTiltString';
+    private const string PROP_CONTACT2_LIGHT_TILT_FLOAT         = 'Contact2LightTiltFloat';
+
+    private const string PROP_CONTACT2_LIGHT_OPEN_ENABLED       = 'Contact2LightOpenEnabled';
+    private const string PROP_CONTACT2_LIGHT_OPEN_VAR           = 'Contact2LightOpenVar';
+    private const string PROP_CONTACT2_LIGHT_OPEN_TYPE          = 'Contact2LightOpenType';
+    private const string PROP_CONTACT2_LIGHT_OPEN_BOOL          = 'Contact2LightOpenBool';
+    private const string PROP_CONTACT2_LIGHT_OPEN_STRING        = 'Contact2LightOpenString';
+    private const string PROP_CONTACT2_LIGHT_OPEN_FLOAT         = 'Contact2LightOpenFloat';
     private const string PROP_EMERGENCYCONTACTID                = 'EmergencyContactID';
     private const string PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY = 'ContactsToCloseHaveHigherPriority';
     private const string PROP_BALCONY_DOOR                      = 'BalconyDoor';
@@ -961,8 +1005,75 @@ class Rolladensteuerung extends IPSModuleStrict
             'bEmergency'           => false
         ];
 
+        // Lichtsteuerung: Für jeden Öffnen-Kontakt den Zustand ermitteln und ggf. Licht schalten
+        $this->applyLightControl();
+
         $this->Logger_Dbg(__FUNCTION__, 'Result: ' . json_encode($result, JSON_THROW_ON_ERROR));
         return $result;
+    }
+
+    /**
+     * Wertet den Zustand der Öffnen-Kontakte aus und setzt bei Bedarf Lichtvariablen.
+     * Jeder Kontakt (1+2) kann für drei Zustände (geschlossen/gekippt/geöffnet)
+     * eine Variable (boolean, string, float) schalten.
+     */
+    private function applyLightControl(): void
+    {
+        $contacts = $this->getDefinedContacts('PROP_CONTACTOPEN', 'PROP_CONTACTOPENLEVEL', 'PROP_CONTACTOPENLEVEL');
+
+        foreach ([1, 2] as $i) {
+            $propIdKey = "PROP_CONTACTOPEN{$i}ID";
+            if (!isset($contacts[$propIdKey])) {
+                continue;
+            }
+
+            $contact = $contacts[$propIdKey];
+            $state   = $this->getContactState($propIdKey, $contact); // 0=geschlossen, 1=gekippt, 2=geöffnet
+
+            $stateKey = match ($state) {
+                0 => 'Closed',
+                1 => 'Tilt',
+                2 => 'Open',
+            };
+
+            $enabledProp = "Contact{$i}Light{$stateKey}Enabled";
+            $varProp     = "Contact{$i}Light{$stateKey}Var";
+            $typeProp    = "Contact{$i}Light{$stateKey}Type";
+
+            if (!$this->ReadPropertyBoolean($enabledProp)) {
+                continue;
+            }
+
+            $varId = $this->ReadPropertyInteger($varProp);
+            if (!IPS_VariableExists($varId)) {
+                continue;
+            }
+
+            $type = $this->ReadPropertyString($typeProp);
+
+            switch ($type) {
+                case 'boolean':
+                    $value = $this->ReadPropertyBoolean("Contact{$i}Light{$stateKey}Bool");
+                    break;
+                case 'string':
+                    $value = $this->ReadPropertyString("Contact{$i}Light{$stateKey}String");
+                    break;
+                case 'float':
+                    $value = $this->ReadPropertyFloat("Contact{$i}Light{$stateKey}Float");
+                    break;
+                default:
+                    continue 2;
+            }
+
+            $this->Logger_Dbg(
+                __FUNCTION__,
+                sprintf('Kontakt %d, Zustand=%s: Setze Variable #%d auf %s', $i, $stateKey, $varId, (string)$value)
+            );
+
+            if (!RequestAction($varId, $value)) {
+                $this->Logger_Err(sprintf('Lichtsteuerung: RequestAction auf Variable #%d fehlgeschlagen', $varId));
+            }
+        }
     }
 
     private function checkContactLimit(array $currentPositions, array $targetPositions, array $contactLimit, bool $isOpeningContact): array
@@ -1158,6 +1269,18 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterPropertyInteger(self::PROP_CONTACTOPEN2_TILT_VALUE, 1);
         $this->RegisterPropertyInteger(self::PROP_CONTACTOPEN2_OPEN_VALUE, 2);
         $this->RegisterPropertyFloat(self::PROP_CONTACTOPEN2_TILT_BLIND_LEVEL, 0);
+
+        // Lichtsteuerung Kontakt 1
+        foreach ([1, 2] as $i) {
+            foreach (['Closed', 'Tilt', 'Open'] as $state) {
+                $this->RegisterPropertyBoolean("Contact{$i}Light{$state}Enabled", false);
+                $this->RegisterPropertyInteger("Contact{$i}Light{$state}Var", 0);
+                $this->RegisterPropertyString("Contact{$i}Light{$state}Type", 'boolean');
+                $this->RegisterPropertyBoolean("Contact{$i}Light{$state}Bool", false);
+                $this->RegisterPropertyString("Contact{$i}Light{$state}String", '');
+                $this->RegisterPropertyFloat("Contact{$i}Light{$state}Float", 0.0);
+            }
+        }
 
         //emergency contact
         $this->RegisterPropertyInteger(self::PROP_EMERGENCYCONTACTID, 0);

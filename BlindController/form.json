@@ -868,6 +868,116 @@
                     "type": "CheckBox",
                     "name": "BalconyDoor",
                     "caption": "Balkontür: Fenstergriff hat immer Vorrang vor Wochenplan und Beschattung"
+                },
+                {
+                    "type": "ExpansionPanel",
+                    "caption": "Lichtsteuerung Kontakt 1 (optional)",
+                    "items": [
+                        {
+                            "type": "Label",
+                            "caption": "Für jeden Zustand des Kontakts 1 kann eine Variable gesetzt werden."
+                        },
+                        {
+                            "type": "RowLayout",
+                            "items": [
+                                { "type": "CheckBox", "name": "Contact1LightClosedEnabled", "caption": "Geschlossen: aktiv" },
+                                { "type": "SelectVariable", "name": "Contact1LightClosedVar", "caption": "Variable", "validVariableTypes": [0, 3, 2] },
+                                { "type": "Select", "name": "Contact1LightClosedType", "caption": "Typ", "options": [
+                                    { "caption": "Boolean", "value": "boolean" },
+                                    { "caption": "String",  "value": "string"  },
+                                    { "caption": "Float",   "value": "float"   }
+                                ]},
+                                { "type": "CheckBox",     "name": "Contact1LightClosedBool",   "caption": "Wert (Bool)"   },
+                                { "type": "ValidationTextBox", "name": "Contact1LightClosedString", "caption": "Wert (String)" },
+                                { "type": "NumberSpinner", "name": "Contact1LightClosedFloat",  "caption": "Wert (Float)", "digits": 2 }
+                            ]
+                        },
+                        {
+                            "type": "RowLayout",
+                            "items": [
+                                { "type": "CheckBox", "name": "Contact1LightTiltEnabled", "caption": "Gekippt: aktiv" },
+                                { "type": "SelectVariable", "name": "Contact1LightTiltVar", "caption": "Variable", "validVariableTypes": [0, 3, 2] },
+                                { "type": "Select", "name": "Contact1LightTiltType", "caption": "Typ", "options": [
+                                    { "caption": "Boolean", "value": "boolean" },
+                                    { "caption": "String",  "value": "string"  },
+                                    { "caption": "Float",   "value": "float"   }
+                                ]},
+                                { "type": "CheckBox",     "name": "Contact1LightTiltBool",   "caption": "Wert (Bool)"   },
+                                { "type": "ValidationTextBox", "name": "Contact1LightTiltString", "caption": "Wert (String)" },
+                                { "type": "NumberSpinner", "name": "Contact1LightTiltFloat",  "caption": "Wert (Float)", "digits": 2 }
+                            ]
+                        },
+                        {
+                            "type": "RowLayout",
+                            "items": [
+                                { "type": "CheckBox", "name": "Contact1LightOpenEnabled", "caption": "Geöffnet: aktiv" },
+                                { "type": "SelectVariable", "name": "Contact1LightOpenVar", "caption": "Variable", "validVariableTypes": [0, 3, 2] },
+                                { "type": "Select", "name": "Contact1LightOpenType", "caption": "Typ", "options": [
+                                    { "caption": "Boolean", "value": "boolean" },
+                                    { "caption": "String",  "value": "string"  },
+                                    { "caption": "Float",   "value": "float"   }
+                                ]},
+                                { "type": "CheckBox",     "name": "Contact1LightOpenBool",   "caption": "Wert (Bool)"   },
+                                { "type": "ValidationTextBox", "name": "Contact1LightOpenString", "caption": "Wert (String)" },
+                                { "type": "NumberSpinner", "name": "Contact1LightOpenFloat",  "caption": "Wert (Float)", "digits": 2 }
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "type": "ExpansionPanel",
+                    "caption": "Lichtsteuerung Kontakt 2 (optional)",
+                    "items": [
+                        {
+                            "type": "Label",
+                            "caption": "Für jeden Zustand des Kontakts 2 kann eine Variable gesetzt werden."
+                        },
+                        {
+                            "type": "RowLayout",
+                            "items": [
+                                { "type": "CheckBox", "name": "Contact2LightClosedEnabled", "caption": "Geschlossen: aktiv" },
+                                { "type": "SelectVariable", "name": "Contact2LightClosedVar", "caption": "Variable", "validVariableTypes": [0, 3, 2] },
+                                { "type": "Select", "name": "Contact2LightClosedType", "caption": "Typ", "options": [
+                                    { "caption": "Boolean", "value": "boolean" },
+                                    { "caption": "String",  "value": "string"  },
+                                    { "caption": "Float",   "value": "float"   }
+                                ]},
+                                { "type": "CheckBox",     "name": "Contact2LightClosedBool",   "caption": "Wert (Bool)"   },
+                                { "type": "ValidationTextBox", "name": "Contact2LightClosedString", "caption": "Wert (String)" },
+                                { "type": "NumberSpinner", "name": "Contact2LightClosedFloat",  "caption": "Wert (Float)", "digits": 2 }
+                            ]
+                        },
+                        {
+                            "type": "RowLayout",
+                            "items": [
+                                { "type": "CheckBox", "name": "Contact2LightTiltEnabled", "caption": "Gekippt: aktiv" },
+                                { "type": "SelectVariable", "name": "Contact2LightTiltVar", "caption": "Variable", "validVariableTypes": [0, 3, 2] },
+                                { "type": "Select", "name": "Contact2LightTiltType", "caption": "Typ", "options": [
+                                    { "caption": "Boolean", "value": "boolean" },
+                                    { "caption": "String",  "value": "string"  },
+                                    { "caption": "Float",   "value": "float"   }
+                                ]},
+                                { "type": "CheckBox",     "name": "Contact2LightTiltBool",   "caption": "Wert (Bool)"   },
+                                { "type": "ValidationTextBox", "name": "Contact2LightTiltString", "caption": "Wert (String)" },
+                                { "type": "NumberSpinner", "name": "Contact2LightTiltFloat",  "caption": "Wert (Float)", "digits": 2 }
+                            ]
+                        },
+                        {
+                            "type": "RowLayout",
+                            "items": [
+                                { "type": "CheckBox", "name": "Contact2LightOpenEnabled", "caption": "Geöffnet: aktiv" },
+                                { "type": "SelectVariable", "name": "Contact2LightOpenVar", "caption": "Variable", "validVariableTypes": [0, 3, 2] },
+                                { "type": "Select", "name": "Contact2LightOpenType", "caption": "Typ", "options": [
+                                    { "caption": "Boolean", "value": "boolean" },
+                                    { "caption": "String",  "value": "string"  },
+                                    { "caption": "Float",   "value": "float"   }
+                                ]},
+                                { "type": "CheckBox",     "name": "Contact2LightOpenBool",   "caption": "Wert (Bool)"   },
+                                { "type": "ValidationTextBox", "name": "Contact2LightOpenString", "caption": "Wert (String)" },
+                                { "type": "NumberSpinner", "name": "Contact2LightOpenFloat",  "caption": "Wert (Float)", "digits": 2 }
+                            ]
+                        }
+                    ]
                 }
             ]
         },
