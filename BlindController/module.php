@@ -387,8 +387,13 @@ class Rolladensteuerung extends IPSModuleStrict
                 break;
 
             case EM_UPDATE:
-                // Wochenplan-Schaltpunkt: immer reagieren
-                $this->handleUpdateMessage($SenderID, $Data, false);
+                // Wochenplan-Schaltpunkt: nur Steuerungslauf auslösen, KEIN SetInstanceStatusAndTimerEvent
+                if ($this->GetValue(self::VAR_IDENT_ACTIVATED) && IPS_GetKernelRunlevel() === KR_READY) {
+                    $this->RegisterOnceTimer(
+                        'BlindControlTimer_ControlBlind',
+                        sprintf('BLC_ControlBlind(%s, true);', $this->InstanceID)
+                    );
+                }
                 break;
 
             case VM_UPDATE:
@@ -400,14 +405,12 @@ class Rolladensteuerung extends IPSModuleStrict
     }
 
     /**
-     * Verarbeitet Aktualisierungen von Variablen und Ereignissen.
-     * @param bool $checkChanged  true = nur reagieren wenn $Data[1] === true (VM_UPDATE),
-     *                            false = immer reagieren (EM_UPDATE)
+     * Verarbeitet Aktualisierungen von Variablen (VM_UPDATE, VM_CHANGEPROFILEACTION).
+     * Wochenplan (EM_UPDATE) wird direkt im MessageSink behandelt.
      */
     private function handleUpdateMessage(int $SenderID, array $Data, bool $checkChanged): void
     {
         // Bei Variablen-Updates: $Data[1] zeigt ob sich der Wert geändert hat
-        // Bei Event-Updates (Wochenplan): immer reagieren
         if ($checkChanged && ($Data[1] ?? null) === false) {
             return;
         }
