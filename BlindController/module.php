@@ -261,14 +261,23 @@ class Rolladensteuerung extends IPSModuleStrict
     {
         if ($Value) {
             $this->resetManualMovement();
+            $this->Logger_Inf(sprintf('\'%s\' wurde aktiviert.', IPS_GetObject($this->InstanceID)['ObjectName']));
         } else {
-            $this->Logger_Inf(sprintf('\'%s\' wurde deaktiviert.', IPS_GetObject($this->InstanceID)['ObjectName']));
+            // Aufruf-Stack loggen um die Quelle der Deaktivierung zu finden
+            $trace = array_map(
+                static fn($f) => sprintf('%s:%s', $f['function'] ?? '?', $f['line'] ?? '?'),
+                array_slice(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 6), 1)
+            );
+            $this->Logger_Inf(sprintf(
+                '\'%s\' wurde deaktiviert. Aufrufer: %s',
+                IPS_GetObject($this->InstanceID)['ObjectName'],
+                implode(' <- ', $trace)
+            ));
         }
 
         $this->SetValue(self::VAR_IDENT_ACTIVATED, $Value);
         $this->SetInstanceStatusAndTimerEvent();
-        $this->RegisterOnceTimer('BlindControlTimer',sprintf('BLC_ControlBlind(%s, %s);', $this->InstanceID, 'false'));
-
+        $this->RegisterOnceTimer('BlindControlTimer', sprintf('BLC_ControlBlind(%s, %s);', $this->InstanceID, 'false'));
     }
 
     /**
@@ -658,7 +667,6 @@ class Rolladensteuerung extends IPSModuleStrict
         $deactivationTimeAuto = $contactResult['deactivationTimeAuto'];
         $bNoMove              = $contactResult['bNoMove'];
         $Hinweis              = $contactResult['hint'];
-        $bEmergency           = $contactResult['bEmergency'];
 
         // --- 6. Bewegung ausführen ---
         if (!$bNoMove) {
@@ -671,11 +679,8 @@ class Rolladensteuerung extends IPSModuleStrict
             $this->MoveBlind($blindLevel, $slatsLevel, $deactivationTimeAuto, $Hinweis);
         }
 
-        //im Notfall wird die Automatik deaktiviert
-        if ($bEmergency) {
-            $this->SetValue(self::VAR_IDENT_ACTIVATED, false);
-            $this->SetInstanceStatusAndTimerEvent();
-        }
+        //im Notfall wird die Automatik NICHT automatisch deaktiviert – nur Benutzer/Boolean darf deaktivieren
+        // (Notfall öffnet den Rollladen, aber das Modul bleibt aktiv)
 
         IPS_SemaphoreLeave($this->InstanceID . '- Blind');
 
