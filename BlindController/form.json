@@ -881,6 +881,17 @@
                             "type": "RowLayout",
                             "items": [
                                 {
+                                    "type": "SelectVariable",
+                                    "name": "Contact1LightConditionVar",
+                                    "caption": "Freigabe (Boolean, optional): Lichtsteuerung nur aktiv wenn true",
+                                    "validVariableTypes": [0]
+                                }
+                            ]
+                        },
+                        {
+                            "type": "RowLayout",
+                            "items": [
+                                {
                                     "type": "CheckBox",
                                     "name": "Contact1LightClosedEnabled",
                                     "caption": "Geschlossen: aktiv",
@@ -1102,6 +1113,17 @@
                         {
                             "type": "Label",
                             "caption": "Für jeden Zustand des Kontakts 2 kann eine Variable gesetzt werden."
+                        },
+                        {
+                            "type": "RowLayout",
+                            "items": [
+                                {
+                                    "type": "SelectVariable",
+                                    "name": "Contact2LightConditionVar",
+                                    "caption": "Freigabe (Boolean, optional): Lichtsteuerung nur aktiv wenn true",
+                                    "validVariableTypes": [0]
+                                }
+                            ]
                         },
                         {
                             "type": "RowLayout",

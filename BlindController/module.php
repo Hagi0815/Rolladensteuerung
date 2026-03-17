@@ -124,6 +124,10 @@ class Rolladensteuerung extends IPSModuleStrict
     private const string PROP_CONTACT2_LIGHT_OPEN_BOOL          = 'Contact2LightOpenBool';
     private const string PROP_CONTACT2_LIGHT_OPEN_STRING        = 'Contact2LightOpenString';
     private const string PROP_CONTACT2_LIGHT_OPEN_FLOAT         = 'Contact2LightOpenFloat';
+
+    // Freigabe-Variable für Lichtsteuerung (Boolean-Variable, muss true sein)
+    private const string PROP_CONTACT1_LIGHT_CONDITION_VAR      = 'Contact1LightConditionVar';
+    private const string PROP_CONTACT2_LIGHT_CONDITION_VAR      = 'Contact2LightConditionVar';
     private const string PROP_EMERGENCYCONTACTID                = 'EmergencyContactID';
     private const string PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY = 'ContactsToCloseHaveHigherPriority';
     private const string PROP_BALCONY_DOOR                      = 'BalconyDoor';
@@ -1076,6 +1080,13 @@ class Rolladensteuerung extends IPSModuleStrict
                 continue;
             }
 
+            // Freigabe-Variable prüfen (optional): wenn gesetzt, muss sie true sein
+            $conditionVarId = $this->ReadPropertyInteger("Contact{$i}LightConditionVar");
+            if (IPS_VariableExists($conditionVarId) && !GetValueBoolean($conditionVarId)) {
+                $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Lichtsteuerung gesperrt (Freigabe-Variable #%d = false)', $i, $conditionVarId));
+                continue;
+            }
+
             // Zustand des Kontakts ermitteln (0=geschlossen, 1=gekippt, 2=geöffnet)
             $useIntProp = constant("self::PROP_CONTACTOPEN{$i}_USE_INTEGER");
             if ($this->ReadPropertyBoolean($useIntProp)) {
@@ -1337,6 +1348,8 @@ class Rolladensteuerung extends IPSModuleStrict
                 $this->RegisterPropertyString("Contact{$i}Light{$state}String", '');
                 $this->RegisterPropertyFloat("Contact{$i}Light{$state}Float", 0.0);
             }
+            // Freigabe-Variable (Boolean muss true sein damit Lichtsteuerung aktiv ist)
+            $this->RegisterPropertyInteger("Contact{$i}LightConditionVar", 0);
         }
 
         //emergency contact
