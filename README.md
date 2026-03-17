@@ -1,7 +1,7 @@
 [![Version](https://img.shields.io/badge/Symcon%20Version-5.1%20%3E-green.svg)](https://www.symcon.de/forum/threads/30857-IP-Symcon-5-1-%28Stable%29-Changelog)
 # Rolladensteuerung
 
-Modul für Symcon ab Version 5.1.
+Modul für Symcon ab Version 8.1.
 
 Steuert einen Rollladen bzw. eine Jalousie nach vorgegebenen Einstellungen.
 
