@@ -202,6 +202,7 @@ class Rolladensteuerung extends IPSModuleStrict
     private const string ATTR_CONTACT_OPEN             = 'AttrContactOpen';
     private const string ATTR_DAYTIME_CHANGE_TIME      = 'DaytimeChangeTime';
     private const string ATTR_LAST_ISDAYBYTIMESCHEDULE = 'LastIsDayByTimeSchedule';
+    private const string ATTR_LIGHT_STATE              = 'LightState'; // letzter Lichtzustand pro Kontakt
 
     //timer names
     private const string TIMER_UPDATE           = 'Update';
@@ -1073,17 +1074,12 @@ class Rolladensteuerung extends IPSModuleStrict
      */
     private function applyLightControl(): void
     {
+        $lastStates = json_decode($this->ReadAttributeString(self::ATTR_LIGHT_STATE), true, 512, JSON_THROW_ON_ERROR);
+
         foreach ([1, 2] as $i) {
             // Kontakt-ID direkt lesen
             $contactId = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}ID"));
             if (!IPS_VariableExists($contactId)) {
-                continue;
-            }
-
-            // Freigabe-Variable prüfen (optional): wenn gesetzt, muss sie true sein
-            $conditionVarId = $this->ReadPropertyInteger("Contact{$i}LightConditionVar");
-            if (IPS_VariableExists($conditionVarId) && !GetValueBoolean($conditionVarId)) {
-                $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Lichtsteuerung gesperrt (Freigabe-Variable #%d = false)', $i, $conditionVarId));
                 continue;
             }
 
@@ -1101,7 +1097,27 @@ class Rolladensteuerung extends IPSModuleStrict
                     $state = 0;
                 }
             } else {
-                $state = $this->isContactOpen("PROP_CONTACTOPEN{$i}ID") ? 2 : 0;
+                // Korrekter Property-Name (Wert der Konstante, nicht der Konstantenname)
+                $state = $this->isContactOpen(constant("self::PROP_CONTACTOPEN{$i}ID") . 'ID') ? 2 : 0;
+                // isContactOpen erwartet den Property-Namen – direkt den Wert auslesen
+                $state = (bool)GetValue($contactId) ? 2 : 0;
+            }
+
+            // Nur bei Zustandsänderung ausführen – verhindert Endlosschleife durch Timer
+            $lastState = $lastStates[$i] ?? -1;
+            if ($state === $lastState) {
+                $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Zustand unverändert (%d), kein Lichtschaltbefehl', $i, $state));
+                continue;
+            }
+
+            // Neuen Zustand speichern
+            $lastStates[$i] = $state;
+
+            // Freigabe-Variable prüfen (optional): wenn gesetzt, muss sie true sein
+            $conditionVarId = $this->ReadPropertyInteger("Contact{$i}LightConditionVar");
+            if (IPS_VariableExists($conditionVarId) && !GetValueBoolean($conditionVarId)) {
+                $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Lichtsteuerung gesperrt (Freigabe-Variable #%d = false)', $i, $conditionVarId));
+                continue;
             }
 
             $stateKey = match ($state) {
@@ -1135,13 +1151,16 @@ class Rolladensteuerung extends IPSModuleStrict
 
             $this->Logger_Dbg(
                 __FUNCTION__,
-                sprintf('Kontakt %d, Zustand=%s: Setze Variable #%d auf %s', $i, $stateKey, $varId, (string)$value)
+                sprintf('Kontakt %d, Zustand=%s (war %d): Setze Variable #%d auf %s', $i, $stateKey, $lastState, $varId, (string)$value)
             );
 
             if (!RequestAction($varId, $value)) {
                 $this->Logger_Err(sprintf('Lichtsteuerung: RequestAction auf Variable #%d fehlgeschlagen', $varId));
             }
         }
+
+        // Aktualisierte Zustände speichern
+        $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode($lastStates, JSON_THROW_ON_ERROR));
     }
 
     private function checkContactLimit(array $currentPositions, array $targetPositions, array $contactLimit, bool $isOpeningContact): array
@@ -1487,6 +1506,7 @@ class Rolladensteuerung extends IPSModuleStrict
         );
         $this->RegisterAttributeInteger(self::ATTR_DAYTIME_CHANGE_TIME, 0);
         $this->RegisterAttributeBoolean(self::ATTR_LAST_ISDAYBYTIMESCHEDULE, false);
+        $this->RegisterAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
     }
 
     private function RegisterVariables(): void
