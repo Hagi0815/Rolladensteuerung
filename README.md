@@ -1,6 +1,6 @@
 # Rolladensteuerung
 
-Modul für IP-Symcon ab Version 5.1. Autor: Hagi
+Modul für IP-Symcon ab Version 8.1. Autor: Hagi
 
 Steuert einen Rollladen, eine Markise oder eine ähnliche Abdunkelungseinrichtung nach konfigurierbaren Regeln.
 
