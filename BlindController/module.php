@@ -297,12 +297,17 @@ class Rolladensteuerung extends IPSModuleStrict
                 break;
 
             default:
-                // Lichtsteuerung: Enabled oder Typ geändert → Sichtbarkeit aktualisieren
+                // Lichtsteuerung: Enabled oder Typ geändert → Sichtbarkeit sofort aktualisieren
                 foreach ([1, 2] as $i) {
                     foreach (['Closed', 'Tilt', 'Open'] as $state) {
-                        if ($Ident === "Contact{$i}Light{$state}Enabled"
-                            || $Ident === "Contact{$i}Light{$state}Type") {
-                            $this->updateLightFieldVisibility($i, $state);
+                        if ($Ident === "Contact{$i}Light{$state}Enabled") {
+                            // $Value = neuer Enabled-Zustand, Typ aus Properties (noch gespeichert)
+                            $this->updateLightFieldVisibility($i, $state, (bool)$Value, null);
+                            return;
+                        }
+                        if ($Ident === "Contact{$i}Light{$state}Type") {
+                            // $Value = neuer Typ, Enabled aus Properties (noch gespeichert)
+                            $this->updateLightFieldVisibility($i, $state, null, (string)$Value);
                             return;
                         }
                     }
@@ -343,19 +348,25 @@ class Rolladensteuerung extends IPSModuleStrict
      * @return void
      */
     /**
-     * Aktualisiert die Sichtbarkeit der Wert-Felder für die Lichtsteuerung
-     * basierend auf dem aktivierten Zustand und dem gewählten Typ.
+     * Aktualisiert die Sichtbarkeit der Wert-Felder für die Lichtsteuerung.
+     * $enabled und $type werden direkt übergeben (nicht aus Properties gelesen,
+     * da onChange vor dem Speichern feuert).
      */
-    private function updateLightFieldVisibility(int $contactIndex, string $state): void
+    private function updateLightFieldVisibility(int $contactIndex, string $state, ?bool $enabled = null, ?string $type = null): void
     {
-        $enabled = $this->ReadPropertyBoolean("Contact{$contactIndex}Light{$state}Enabled");
-        $type    = $this->ReadPropertyString("Contact{$contactIndex}Light{$state}Type");
+        // Fallback auf gespeicherte Properties (z.B. beim Laden des Formulars)
+        if ($enabled === null) {
+            $enabled = $this->ReadPropertyBoolean("Contact{$contactIndex}Light{$state}Enabled");
+        }
+        if ($type === null) {
+            $type = $this->ReadPropertyString("Contact{$contactIndex}Light{$state}Type");
+        }
 
+        $this->UpdateFormField("Contact{$contactIndex}Light{$state}Var",    'visible', $enabled);
+        $this->UpdateFormField("Contact{$contactIndex}Light{$state}Type",   'visible', $enabled);
         $this->UpdateFormField("Contact{$contactIndex}Light{$state}Bool",   'visible', $enabled && $type === 'boolean');
         $this->UpdateFormField("Contact{$contactIndex}Light{$state}String", 'visible', $enabled && $type === 'string');
         $this->UpdateFormField("Contact{$contactIndex}Light{$state}Float",  'visible', $enabled && $type === 'float');
-        $this->UpdateFormField("Contact{$contactIndex}Light{$state}Var",    'visible', $enabled);
-        $this->UpdateFormField("Contact{$contactIndex}Light{$state}Type",   'visible', $enabled);
     }
 
     private function updateFormVisibility(string $Ident, mixed $Value): void
