@@ -669,9 +669,9 @@ class Rolladensteuerung extends IPSModuleStrict
         $Hinweis              = $contactResult['hint'];
 
         // --- 6. Bewegung ausführen ---
+        $blindLevel = $this->calculateNormalizedLevel($positionsNew['BlindLevel'], $this->profileBlindLevel);
+        $slatsLevel = -1;
         if (!$bNoMove) {
-            $blindLevel = $this->calculateNormalizedLevel($positionsNew['BlindLevel'], $this->profileBlindLevel);
-            $slatsLevel = -1; // -1 = kein Lamelleenwert
             if (IPS_VariableExists($this->ReadPropertyInteger(self::PROP_SLATSLEVELID))) {
                 $slatsLevel = $this->calculateNormalizedLevel($positionsNew['SlatsLevel'], $this->profileSlatsLevel);
             }
@@ -682,9 +682,9 @@ class Rolladensteuerung extends IPSModuleStrict
         // --- 7. Status-Meldung aktualisieren ---
         $statusMsg = date('H:i:s') . ' | ';
         $statusMsg .= $Hinweis !== '' ? $Hinweis : ($bNoMove ? 'Keine Bewegung (Sperre)' : 'Keine Änderung');
-        $statusMsg .= sprintf(' | Pos: %d%%', $positionsNew['BlindLevel']);
-        if ($positionsNew['SlatsLevel'] !== null) {
-            $statusMsg .= sprintf(' / %d%%', $positionsNew['SlatsLevel']);
+        $statusMsg .= sprintf(' | Pos: %d%%', $blindLevel);
+        if ($slatsLevel !== -1) {
+            $statusMsg .= sprintf(' / %d%%', $slatsLevel);
         }
         $this->SetValue(self::VAR_IDENT_LAST_MESSAGE, $statusMsg);
 
