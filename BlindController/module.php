@@ -399,7 +399,9 @@ class Rolladensteuerung extends IPSModuleStrict
         // Wenn Typ = string: Profiloptionen sofort laden (aus gespeicherter Variable)
         if ($enabled && $type === 'string') {
             $varId = $this->ReadPropertyInteger("Contact{$contactIndex}Light{$state}Var");
-            $this->updateLightStringOptions($contactIndex, $state, $varId);
+            if ($varId > 0) {
+                $this->updateLightStringOptions($contactIndex, $state, $varId);
+            }
         }
     }
 
@@ -452,7 +454,11 @@ class Rolladensteuerung extends IPSModuleStrict
             }
         }
 
-        $this->UpdateFormField("Contact{$contactIndex}Light{$state}String", 'options', $options);
+        $this->UpdateFormField(
+            "Contact{$contactIndex}Light{$state}String",
+            'options',
+            json_encode($options, JSON_THROW_ON_ERROR)
+        );
     }
 
     private function updateFormVisibility(string $Ident, mixed $Value): void
