@@ -399,25 +399,55 @@ class Rolladensteuerung extends IPSModuleStrict
 
     /**
      * Lädt die Profilwerte der gewählten Variable als Optionen in das String-Select-Feld.
+     * Bei Szenen-Variablen werden die Szenennamen direkt aus dem IP-Symcon Objektbaum gelesen.
      */
     private function updateLightStringOptions(int $contactIndex, string $state, int $varId): void
     {
         $options = [['caption' => '-- Wert wählen --', 'value' => '']];
 
-        if (IPS_VariableExists($varId)) {
-            $variable    = IPS_GetVariable($varId);
-            $profileName = $variable['VariableCustomProfile'] !== ''
-                ? $variable['VariableCustomProfile']
-                : $variable['VariableProfile'];
+        if (!IPS_VariableExists($varId)) {
+            $this->UpdateFormField("Contact{$contactIndex}Light{$state}String", 'options', $options);
+            return;
+        }
 
-            if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
-                $profile = IPS_GetVariableProfile($profileName);
-                foreach ($profile['Associations'] as $assoc) {
-                    $options[] = [
-                        'caption' => $assoc['Name'],
-                        'value'   => (string)$assoc['Value'],
-                    ];
+        $variable    = IPS_GetVariable($varId);
+        $profileName = $variable['VariableCustomProfile'] !== ''
+            ? $variable['VariableCustomProfile']
+            : $variable['VariableProfile'];
+
+        // Profil-Assoziationen laden
+        if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
+            $profile = IPS_GetVariableProfile($profileName);
+            foreach ($profile['Associations'] as $assoc) {
+                $val     = $assoc['Value'];
+                $caption = $assoc['Name'] !== '' ? $assoc['Name'] : (string)$val;
+
+                // UUID-artige Werte: Namen aus dem IP-Symcon Objektbaum nachschlagen
+                if (is_string($val) && preg_match('/^[0-9a-f\-]{32,}$/i', $val)) {
+                    // Szenen-Instanz mit dieser GUID suchen
+                    foreach (IPS_GetInstanceListByModuleID('{9790CC37-64FC-4D95-9A0D-A6E8C4877A93}') as $instanceID) {
+                        if (IPS_GetProperty($instanceID, 'SceneID') === $val
+                            || (string)$instanceID === $val) {
+                            $caption = IPS_GetObject($instanceID)['ObjectName'];
+                            break;
+                        }
+                    }
                 }
+
+                $options[] = ['caption' => $caption, 'value' => (string)$val];
+            }
+        }
+
+        // Fallback: aktuellen Wert anbieten wenn keine Assoziationen
+        if (count($options) === 1 && $variable['VariableType'] === VARIABLETYPE_STRING) {
+            $currentVal = GetValue($varId);
+            if ($currentVal !== '') {
+                try {
+                    $caption = GetValueFormatted($varId);
+                } catch (\Exception $e) {
+                    $caption = $currentVal;
+                }
+                $options[] = ['caption' => $caption ?: $currentVal, 'value' => $currentVal];
             }
         }
 
