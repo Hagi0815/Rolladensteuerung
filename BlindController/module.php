@@ -423,6 +423,8 @@ class Rolladensteuerung extends IPSModuleStrict
 
         $this->UpdateFormField("Contact{$contactIndex}Light{$state}String", 'options', $options);
     }
+
+    private function updateFormVisibility(string $Ident, mixed $Value): void
     {
         $showNotUsed = $this->ReadPropertyBoolean(self::PROP_SHOWNOTUSEDELEMENTS);
         $hasValue = is_bool($Value) ? $Value : ($Value > 0);
