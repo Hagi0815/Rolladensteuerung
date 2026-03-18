@@ -309,13 +309,16 @@ class Rolladensteuerung extends IPSModuleStrict
                 foreach ([1, 2] as $i) {
                     foreach (['Closed', 'Tilt', 'Open'] as $state) {
                         if ($Ident === "Contact{$i}Light{$state}Enabled") {
-                            // $Value = neuer Enabled-Zustand, Typ aus Properties (noch gespeichert)
                             $this->updateLightFieldVisibility($i, $state, (bool)$Value, null);
                             return;
                         }
                         if ($Ident === "Contact{$i}Light{$state}Type") {
-                            // $Value = neuer Typ, Enabled aus Properties (noch gespeichert)
                             $this->updateLightFieldVisibility($i, $state, null, (string)$Value);
+                            return;
+                        }
+                        if ($Ident === "Contact{$i}Light{$state}Var") {
+                            // Variable gewechselt → Profilwerte als Optionen laden
+                            $this->updateLightStringOptions($i, $state, (int)$Value);
                             return;
                         }
                     }
@@ -394,7 +397,32 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->UpdateFormField("Contact{$contactIndex}Light{$state}Float",  'visible', $enabled && $type === 'float');
     }
 
-    private function updateFormVisibility(string $Ident, mixed $Value): void
+    /**
+     * Lädt die Profilwerte der gewählten Variable als Optionen in das String-Select-Feld.
+     */
+    private function updateLightStringOptions(int $contactIndex, string $state, int $varId): void
+    {
+        $options = [['caption' => '-- Wert wählen --', 'value' => '']];
+
+        if (IPS_VariableExists($varId)) {
+            $variable    = IPS_GetVariable($varId);
+            $profileName = $variable['VariableCustomProfile'] !== ''
+                ? $variable['VariableCustomProfile']
+                : $variable['VariableProfile'];
+
+            if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
+                $profile = IPS_GetVariableProfile($profileName);
+                foreach ($profile['Associations'] as $assoc) {
+                    $options[] = [
+                        'caption' => $assoc['Name'],
+                        'value'   => (string)$assoc['Value'],
+                    ];
+                }
+            }
+        }
+
+        $this->UpdateFormField("Contact{$contactIndex}Light{$state}String", 'options', $options);
+    }
     {
         $showNotUsed = $this->ReadPropertyBoolean(self::PROP_SHOWNOTUSEDELEMENTS);
         $hasValue = is_bool($Value) ? $Value : ($Value > 0);
@@ -586,11 +614,27 @@ class Rolladensteuerung extends IPSModuleStrict
             foreach (['Closed', 'Tilt', 'Open'] as $state) {
                 $enabled = $this->ReadPropertyBoolean("Contact{$i}Light{$state}Enabled");
                 $type    = $this->ReadPropertyString("Contact{$i}Light{$state}Type");
+                $varId   = $this->ReadPropertyInteger("Contact{$i}Light{$state}Var");
                 $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}Var",    'visible', $enabled);
                 $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}Type",   'visible', $enabled);
                 $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}Bool",   'visible', $enabled && $type === 'boolean');
                 $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}String", 'visible', $enabled && $type === 'string');
                 $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}Float",  'visible', $enabled && $type === 'float');
+
+                // Profilwerte der gespeicherten Variable als Optionen laden (für String-Typ)
+                if ($type === 'string' && IPS_VariableExists($varId)) {
+                    $options = [['caption' => '-- Wert wählen --', 'value' => '']];
+                    $variable    = IPS_GetVariable($varId);
+                    $profileName = $variable['VariableCustomProfile'] !== ''
+                        ? $variable['VariableCustomProfile']
+                        : $variable['VariableProfile'];
+                    if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
+                        foreach (IPS_GetVariableProfile($profileName)['Associations'] as $assoc) {
+                            $options[] = ['caption' => $assoc['Name'], 'value' => (string)$assoc['Value']];
+                        }
+                    }
+                    $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}String", 'options', $options);
+                }
             }
         }
 

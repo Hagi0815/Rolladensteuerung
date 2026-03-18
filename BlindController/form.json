@@ -881,9 +881,18 @@
                             "name": "PriorityModeMorning",
                             "caption": "Vorrang morgens (Rollladen fährt auf)",
                             "options": [
-                                { "caption": "Wochenplan (Uhrzeit entscheidet)", "value": 0 },
-                                { "caption": "Sonnenaufgang (Helligkeit/IsDay hat Vorrang)", "value": 1 },
-                                { "caption": "Fenstergriff (Kontakt überschreibt alles)", "value": 2 }
+                                {
+                                    "caption": "Wochenplan (Uhrzeit entscheidet)",
+                                    "value": 0
+                                },
+                                {
+                                    "caption": "Sonnenaufgang (Helligkeit/IsDay hat Vorrang)",
+                                    "value": 1
+                                },
+                                {
+                                    "caption": "Fenstergriff (Kontakt überschreibt alles)",
+                                    "value": 2
+                                }
                             ]
                         },
                         {
@@ -891,9 +900,18 @@
                             "name": "PriorityModeEvening",
                             "caption": "Vorrang abends (Rollladen fährt zu)",
                             "options": [
-                                { "caption": "Wochenplan (Uhrzeit entscheidet)", "value": 0 },
-                                { "caption": "Sonnenuntergang (Helligkeit/IsDay hat Vorrang)", "value": 1 },
-                                { "caption": "Fenstergriff (Kontakt überschreibt alles)", "value": 2 }
+                                {
+                                    "caption": "Wochenplan (Uhrzeit entscheidet)",
+                                    "value": 0
+                                },
+                                {
+                                    "caption": "Sonnenuntergang (Helligkeit/IsDay hat Vorrang)",
+                                    "value": 1
+                                },
+                                {
+                                    "caption": "Fenstergriff (Kontakt überschreibt alles)",
+                                    "value": 2
+                                }
                             ]
                         }
                     ]
@@ -913,7 +931,9 @@
                                     "type": "SelectVariable",
                                     "name": "Contact1LightConditionVar",
                                     "caption": "Freigabe (Boolean, optional): Lichtsteuerung nur aktiv wenn true",
-                                    "validVariableTypes": [0]
+                                    "validVariableTypes": [
+                                        0
+                                    ]
                                 }
                             ]
                         },
@@ -1150,7 +1170,9 @@
                                     "type": "SelectVariable",
                                     "name": "Contact2LightConditionVar",
                                     "caption": "Freigabe (Boolean, optional): Lichtsteuerung nur aktiv wenn true",
-                                    "validVariableTypes": [0]
+                                    "validVariableTypes": [
+                                        0
+                                    ]
                                 }
                             ]
                         },
