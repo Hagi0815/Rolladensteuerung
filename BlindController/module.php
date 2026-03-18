@@ -3752,7 +3752,7 @@ class Rolladensteuerung extends IPSModuleStrict
                 $item = $this->MyUpdateFormField($item, $name, $parameter, $value);
             } elseif (isset($item['items'])) {
                 $item['items'] = $this->MyUpdateFormField($item['items'], $name, $parameter, $value);
-            } elseif (isset($item['type']) && in_array($item['type'], ['Select', 'NumberSpinner', 'SelectVariable'])) {
+            } elseif (isset($item['type']) && in_array($item['type'], ['Select', 'NumberSpinner', 'SelectVariable', 'ValidationTextBox', 'CheckBox'])) {
                 if ($item['name'] === $name) {
                     $item[$parameter] = $value;
                     return $form;
