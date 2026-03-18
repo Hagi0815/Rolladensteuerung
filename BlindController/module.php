@@ -395,6 +395,12 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->UpdateFormField("Contact{$contactIndex}Light{$state}Bool",   'visible', $enabled && $type === 'boolean');
         $this->UpdateFormField("Contact{$contactIndex}Light{$state}String", 'visible', $enabled && $type === 'string');
         $this->UpdateFormField("Contact{$contactIndex}Light{$state}Float",  'visible', $enabled && $type === 'float');
+
+        // Wenn Typ = string: Profiloptionen sofort laden (aus gespeicherter Variable)
+        if ($enabled && $type === 'string') {
+            $varId = $this->ReadPropertyInteger("Contact{$contactIndex}Light{$state}Var");
+            $this->updateLightStringOptions($contactIndex, $state, $varId);
+        }
     }
 
     /**
@@ -417,14 +423,6 @@ class Rolladensteuerung extends IPSModuleStrict
 
             if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
                 $profile = IPS_GetVariableProfile($profileName);
-
-                // Debug: Profil-Struktur loggen um korrekte Felder zu finden
-                $this->Logger_Dbg(__FUNCTION__, sprintf(
-                    'Profil: %s, Typ: %d, Assoc[0]: %s',
-                    $profileName,
-                    $profile['ProfileType'],
-                    json_encode($profile['Associations'][0] ?? [], JSON_THROW_ON_ERROR)
-                ));
 
                 foreach ($profile['Associations'] as $assoc) {
                     // Bei String-Profilen: 'Name' ist der Anzeige-Text,
@@ -664,11 +662,18 @@ class Rolladensteuerung extends IPSModuleStrict
                         ? $variable['VariableCustomProfile']
                         : $variable['VariableProfile'];
                     if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
-                        $profile   = IPS_GetVariableProfile($profileName);
-                        $isStrType = ($profile['ProfileType'] === VARIABLETYPE_STRING);
+                        $profile = IPS_GetVariableProfile($profileName);
                         foreach ($profile['Associations'] as $assoc) {
-                            $val       = $isStrType ? (string)$assoc['Name'] : (string)$assoc['Value'];
-                            $caption   = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
+                            if (isset($assoc['StringValue']) && $assoc['StringValue'] !== '') {
+                                $val     = $assoc['StringValue'];
+                                $caption = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
+                            } elseif ($profile['ProfileType'] === VARIABLETYPE_STRING) {
+                                $val     = $assoc['Name'];
+                                $caption = $assoc['Name'];
+                            } else {
+                                $val     = (string)$assoc['Value'];
+                                $caption = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
+                            }
                             $options[] = ['caption' => $caption, 'value' => $val];
                         }
                     }
