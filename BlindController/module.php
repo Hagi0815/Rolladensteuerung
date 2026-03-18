@@ -399,55 +399,58 @@ class Rolladensteuerung extends IPSModuleStrict
 
     /**
      * Lädt die Profilwerte der gewählten Variable als Optionen in das String-Select-Feld.
-     * Bei Szenen-Variablen werden die Szenennamen direkt aus dem IP-Symcon Objektbaum gelesen.
+     * Bei String-Profilen hat IPS_GetVariableProfile folgende Assoziation-Struktur:
+     *   - 'Value'  => Integer-Index (Reihenfolge)
+     *   - 'Name'   => Angezeigter Text (z.B. "Balkontür offen")
+     * Der eigentliche String-Wert (z.B. UUID) ist in IPS als 'StringValue' verfügbar
+     * oder – wenn nicht vorhanden – als Name selbst zu verwenden.
      */
     private function updateLightStringOptions(int $contactIndex, string $state, int $varId): void
     {
         $options = [['caption' => '-- Wert wählen --', 'value' => '']];
 
-        if (!IPS_VariableExists($varId)) {
-            $this->UpdateFormField("Contact{$contactIndex}Light{$state}String", 'options', $options);
-            return;
-        }
+        if (IPS_VariableExists($varId)) {
+            $variable    = IPS_GetVariable($varId);
+            $profileName = $variable['VariableCustomProfile'] !== ''
+                ? $variable['VariableCustomProfile']
+                : $variable['VariableProfile'];
 
-        $variable    = IPS_GetVariable($varId);
-        $profileName = $variable['VariableCustomProfile'] !== ''
-            ? $variable['VariableCustomProfile']
-            : $variable['VariableProfile'];
+            if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
+                $profile = IPS_GetVariableProfile($profileName);
 
-        // Profil-Assoziationen laden
-        if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
-            $profile = IPS_GetVariableProfile($profileName);
-            foreach ($profile['Associations'] as $assoc) {
-                $val     = $assoc['Value'];
-                $caption = $assoc['Name'] !== '' ? $assoc['Name'] : (string)$val;
+                // Debug: Profil-Struktur loggen um korrekte Felder zu finden
+                $this->Logger_Dbg(__FUNCTION__, sprintf(
+                    'Profil: %s, Typ: %d, Assoc[0]: %s',
+                    $profileName,
+                    $profile['ProfileType'],
+                    json_encode($profile['Associations'][0] ?? [], JSON_THROW_ON_ERROR)
+                ));
 
-                // UUID-artige Werte: Namen aus dem IP-Symcon Objektbaum nachschlagen
-                if (is_string($val) && preg_match('/^[0-9a-f\-]{32,}$/i', $val)) {
-                    // Szenen-Instanz mit dieser GUID suchen
-                    foreach (IPS_GetInstanceListByModuleID('{9790CC37-64FC-4D95-9A0D-A6E8C4877A93}') as $instanceID) {
-                        if (IPS_GetProperty($instanceID, 'SceneID') === $val
-                            || (string)$instanceID === $val) {
-                            $caption = IPS_GetObject($instanceID)['ObjectName'];
-                            break;
-                        }
+                foreach ($profile['Associations'] as $assoc) {
+                    // Bei String-Profilen: 'Name' ist der Anzeige-Text,
+                    // der tatsächliche String-Wert steht in 'StringValue' (falls vorhanden)
+                    // oder identisch in 'Name' wenn kein StringValue existiert.
+                    if (isset($assoc['StringValue']) && $assoc['StringValue'] !== '') {
+                        $val     = $assoc['StringValue'];
+                        $caption = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
+                    } elseif ($profile['ProfileType'] === VARIABLETYPE_STRING) {
+                        // String-Profil ohne StringValue: Name ist der gesendete Wert
+                        $val     = $assoc['Name'];
+                        $caption = $assoc['Name'];
+                    } else {
+                        $val     = (string)$assoc['Value'];
+                        $caption = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
                     }
+                    $options[] = ['caption' => $caption, 'value' => $val];
                 }
-
-                $options[] = ['caption' => $caption, 'value' => (string)$val];
             }
-        }
 
-        // Fallback: aktuellen Wert anbieten wenn keine Assoziationen
-        if (count($options) === 1 && $variable['VariableType'] === VARIABLETYPE_STRING) {
-            $currentVal = GetValue($varId);
-            if ($currentVal !== '') {
-                try {
-                    $caption = GetValueFormatted($varId);
-                } catch (\Exception $e) {
-                    $caption = $currentVal;
+            // Fallback: aktuellen Wert der Variable anzeigen wenn kein Profil
+            if (count($options) === 1 && $variable['VariableType'] === VARIABLETYPE_STRING) {
+                $currentVal = GetValue($varId);
+                if ($currentVal !== '') {
+                    $options[] = ['caption' => $currentVal, 'value' => $currentVal];
                 }
-                $options[] = ['caption' => $caption ?: $currentVal, 'value' => $currentVal];
             }
         }
 
@@ -661,8 +664,12 @@ class Rolladensteuerung extends IPSModuleStrict
                         ? $variable['VariableCustomProfile']
                         : $variable['VariableProfile'];
                     if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
-                        foreach (IPS_GetVariableProfile($profileName)['Associations'] as $assoc) {
-                            $options[] = ['caption' => $assoc['Name'], 'value' => (string)$assoc['Value']];
+                        $profile   = IPS_GetVariableProfile($profileName);
+                        $isStrType = ($profile['ProfileType'] === VARIABLETYPE_STRING);
+                        foreach ($profile['Associations'] as $assoc) {
+                            $val       = $isStrType ? (string)$assoc['Name'] : (string)$assoc['Value'];
+                            $caption   = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
+                            $options[] = ['caption' => $caption, 'value' => $val];
                         }
                     }
                     $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}String", 'options', $options);
@@ -3828,11 +3835,8 @@ class Rolladensteuerung extends IPSModuleStrict
                 $item = $this->MyUpdateFormField($item, $name, $parameter, $value);
             } elseif (isset($item['items'])) {
                 $item['items'] = $this->MyUpdateFormField($item['items'], $name, $parameter, $value);
-            } elseif (isset($item['type']) && in_array($item['type'], ['Select', 'NumberSpinner', 'SelectVariable', 'ValidationTextBox', 'CheckBox'])) {
-                if ($item['name'] === $name) {
-                    $item[$parameter] = $value;
-                    return $form;
-                }
+            } elseif (isset($item['name'], $item['type']) && $item['name'] === $name) {
+                $item[$parameter] = $value;
             }
         }
         return $form;
