@@ -878,12 +878,22 @@
                     "items": [
                         {
                             "type": "Select",
-                            "name": "PriorityMode",
-                            "caption": "Steuerungsvorrang",
+                            "name": "PriorityModeMorning",
+                            "caption": "Vorrang morgens (Rollladen fährt auf)",
                             "options": [
-                                { "caption": "Wochenplan (Zeiten entscheiden, Tagerkennung ignoriert)", "value": 0 },
-                                { "caption": "Sonnenauf-/-untergang (Tagerkennung hat Vorrang vor Wochenplan)", "value": 1 },
-                                { "caption": "Fenstergriff (Kontakte überschreiben Wochenplan und Beschattung)", "value": 2 }
+                                { "caption": "Wochenplan (Uhrzeit entscheidet)", "value": 0 },
+                                { "caption": "Sonnenaufgang (Helligkeit/IsDay hat Vorrang)", "value": 1 },
+                                { "caption": "Fenstergriff (Kontakt überschreibt alles)", "value": 2 }
+                            ]
+                        },
+                        {
+                            "type": "Select",
+                            "name": "PriorityModeEvening",
+                            "caption": "Vorrang abends (Rollladen fährt zu)",
+                            "options": [
+                                { "caption": "Wochenplan (Uhrzeit entscheidet)", "value": 0 },
+                                { "caption": "Sonnenuntergang (Helligkeit/IsDay hat Vorrang)", "value": 1 },
+                                { "caption": "Fenstergriff (Kontakt überschreibt alles)", "value": 2 }
                             ]
                         }
                     ]

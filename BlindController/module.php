@@ -131,7 +131,8 @@ class Rolladensteuerung extends IPSModuleStrict
     private const string PROP_EMERGENCYCONTACTID                = 'EmergencyContactID';
     private const string PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY = 'ContactsToCloseHaveHigherPriority';
     private const string PROP_BALCONY_DOOR                      = 'BalconyDoor';
-    private const string PROP_PRIORITY_MODE                     = 'PriorityMode';
+    private const string PROP_PRIORITY_MODE_MORNING             = 'PriorityModeMorning';
+    private const string PROP_PRIORITY_MODE_EVENING             = 'PriorityModeEvening';
     // PriorityMode: 0 = Wochenplan, 1 = Sonnenauf/-untergang, 2 = Fenstergriff
 
     //shadowing, according to sun position
@@ -782,7 +783,7 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         // --- 5. Kontakte (Fenster/Notfall) prüfen und Positionen ggf. überschreiben ---
-        $contactResult = $this->applyContactLogic($positionsAct, $positionsNew, $deactivationTimeAuto, $bNoMove, $Hinweis);
+        $contactResult = $this->applyContactLogic($positionsAct, $positionsNew, $deactivationTimeAuto, $bNoMove, $Hinweis, $dayState['priorityMode'] ?? 1);
 
         $positionsNew         = $contactResult['positions'];
         $deactivationTimeAuto = $contactResult['deactivationTimeAuto'];
@@ -826,31 +827,38 @@ class Rolladensteuerung extends IPSModuleStrict
         $isDayByTimeSchedule = $this->getIsDayByTimeSchedule();
         $brightness          = null;
         $isDayByDayDetection = $this->getIsDayByDayDetection($brightness, $currentBlindLevel);
-        $priorityMode        = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE);
 
-        // Prioritätsmodus bestimmt wer Tag/Nacht entscheidet:
-        // 0 = Wochenplan: Wochenplan entscheidet immer, Tagerkennung ignoriert
+        // Morgens (Wochenplan sagt: Tag) oder abends (Wochenplan sagt: Nacht)?
+        // true = Wochenplan-Zeit für Tag erreicht → morgens → Auffahren
+        // false = Wochenplan-Zeit für Nacht → abends → Zufahren
+        $isMorningPhase  = ($isDayByTimeSchedule === true);
+        $priorityMode    = $isMorningPhase
+            ? $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING)
+            : $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
+
+        $phaseLabel = $isMorningPhase ? 'Morgens' : 'Abends';
+
+        // Prioritätsmodus:
+        // 0 = Wochenplan: entscheidet allein, Tagerkennung ignoriert
         // 1 = Sonnenauf/-untergang: Tagerkennung hat Vorrang, Wochenplan ist Fallback
-        // 2 = Fenstergriff: wie Modus 1, Kontakte setzen sich aber über alles durch
+        // 2 = Fenstergriff: wie 1, Kontakte überschreiben zusätzlich alles
         if ($priorityMode === 0) {
-            // Wochenplan hat Vorrang – Tagerkennung wird ignoriert
             $isDay = $isDayByTimeSchedule;
-            $this->Logger_Dbg(__FUNCTION__, 'PriorityMode: Wochenplan');
+            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: PriorityMode = Wochenplan");
         } elseif ($isDayByDayDetection !== null) {
-            // Sonne/Helligkeit hat Vorrang (Modi 1 und 2)
             $isDay = $isDayByDayDetection;
-            $this->Logger_Dbg(__FUNCTION__, 'PriorityMode: Sonnenauf/-untergang (DayDetection aktiv)');
+            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: PriorityMode = Sonnenauf/-untergang (DayDetection aktiv)");
         } else {
-            // Fallback: Wochenplan
             $isDay = $isDayByTimeSchedule;
-            $this->Logger_Dbg(__FUNCTION__, 'PriorityMode: Wochenplan (Fallback, kein DayDetection-Sensor)');
+            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: PriorityMode = Wochenplan (Fallback, kein DayDetection-Sensor)");
         }
 
         return [
             'isDay'               => $isDay,
             'isDayByTimeSchedule' => $isDayByTimeSchedule,
             'isDayByDayDetection' => $isDayByDayDetection,
-            'brightness'          => $brightness
+            'brightness'          => $brightness,
+            'priorityMode'        => $priorityMode,
         ];
     }
 
@@ -997,7 +1005,7 @@ class Rolladensteuerung extends IPSModuleStrict
      * @return array{positions: array, deactivationTimeAuto: int, bNoMove: bool, hint: string, bEmergency: bool}
      * @throws \JsonException
      */
-    private function applyContactLogic(array $positionsAct, array $positionsNew, int $deactivationTimeAuto, bool $bNoMove, string $Hinweis): array
+    private function applyContactLogic(array $positionsAct, array $positionsNew, int $deactivationTimeAuto, bool $bNoMove, string $Hinweis, int $priorityMode = 1): array
     {
         $this->Logger_Dbg(
             __FUNCTION__,
@@ -1047,7 +1055,7 @@ class Rolladensteuerung extends IPSModuleStrict
         // 3. Kontakte prüfen
         if ($positionsContactOpenBlind !== null) {
             $fenstergriffVorrang = $this->ReadPropertyBoolean(self::PROP_BALCONY_DOOR)
-                                   || $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE) === 2;
+                                   || $priorityMode === 2;
 
             if ($fenstergriffVorrang) {
                 // Fenstergriff-Vorrang: Position direkt erzwingen (Vorrang vor Wochenplan und Beschattung)
@@ -1372,7 +1380,8 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterPropertyFloat(self::PROP_CONTACTCLOSESLATSLEVEL2, 0);
         $this->RegisterPropertyBoolean(self::PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY, false);
         $this->RegisterPropertyBoolean(self::PROP_BALCONY_DOOR, false);
-        $this->RegisterPropertyInteger(self::PROP_PRIORITY_MODE, 1); // Standard: Sonnenauf/-untergang
+        $this->RegisterPropertyInteger(self::PROP_PRIORITY_MODE_MORNING, 1); // Standard: Sonnenaufgang
+        $this->RegisterPropertyInteger(self::PROP_PRIORITY_MODE_EVENING, 1); // Standard: Sonnenuntergang
 
         //contacts open
         $this->RegisterPropertyInteger(self::PROP_CONTACTOPEN1ID, 0);
