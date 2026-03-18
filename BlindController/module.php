@@ -131,6 +131,8 @@ class Rolladensteuerung extends IPSModuleStrict
     private const string PROP_EMERGENCYCONTACTID                = 'EmergencyContactID';
     private const string PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY = 'ContactsToCloseHaveHigherPriority';
     private const string PROP_BALCONY_DOOR                      = 'BalconyDoor';
+    private const string PROP_PRIORITY_MODE                     = 'PriorityMode';
+    // PriorityMode: 0 = Wochenplan, 1 = Sonnenauf/-untergang, 2 = Fenstergriff
 
     //shadowing, according to sun position
     private const string PROP_ACTIVATORIDSHADOWINGBYSUNPOSITION           = 'ActivatorIDShadowingBySunPosition';
@@ -807,13 +809,24 @@ class Rolladensteuerung extends IPSModuleStrict
         $isDayByTimeSchedule = $this->getIsDayByTimeSchedule();
         $brightness          = null;
         $isDayByDayDetection = $this->getIsDayByDayDetection($brightness, $currentBlindLevel);
+        $priorityMode        = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE);
 
-        // Priorität: 1. DayDetection (Helligkeit/IsDayIndikator/Sonnenuntergang)
-        //            2. Wochenplan (nur Fallback wenn kein DayDetection-Sensor konfiguriert)
-        if ($isDayByDayDetection !== null) {
-            $isDay = $isDayByDayDetection; // Sonnenuntergang/Helligkeit hat Vorrang
+        // Prioritätsmodus bestimmt wer Tag/Nacht entscheidet:
+        // 0 = Wochenplan: Wochenplan entscheidet immer, Tagerkennung ignoriert
+        // 1 = Sonnenauf/-untergang: Tagerkennung hat Vorrang, Wochenplan ist Fallback
+        // 2 = Fenstergriff: wie Modus 1, Kontakte setzen sich aber über alles durch
+        if ($priorityMode === 0) {
+            // Wochenplan hat Vorrang – Tagerkennung wird ignoriert
+            $isDay = $isDayByTimeSchedule;
+            $this->Logger_Dbg(__FUNCTION__, 'PriorityMode: Wochenplan');
+        } elseif ($isDayByDayDetection !== null) {
+            // Sonne/Helligkeit hat Vorrang (Modi 1 und 2)
+            $isDay = $isDayByDayDetection;
+            $this->Logger_Dbg(__FUNCTION__, 'PriorityMode: Sonnenauf/-untergang (DayDetection aktiv)');
         } else {
-            $isDay = $isDayByTimeSchedule; // Fallback: Wochenplan
+            // Fallback: Wochenplan
+            $isDay = $isDayByTimeSchedule;
+            $this->Logger_Dbg(__FUNCTION__, 'PriorityMode: Wochenplan (Fallback, kein DayDetection-Sensor)');
         }
 
         return [
@@ -1016,15 +1029,18 @@ class Rolladensteuerung extends IPSModuleStrict
 
         // 3. Kontakte prüfen
         if ($positionsContactOpenBlind !== null) {
-            if ($this->ReadPropertyBoolean(self::PROP_BALCONY_DOOR)) {
-                // Balkontür: Fenstergriff erzwingt Position direkt (Vorrang vor Wochenplan und Beschattung)
+            $fenstergriffVorrang = $this->ReadPropertyBoolean(self::PROP_BALCONY_DOOR)
+                                   || $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE) === 2;
+
+            if ($fenstergriffVorrang) {
+                // Fenstergriff-Vorrang: Position direkt erzwingen (Vorrang vor Wochenplan und Beschattung)
                 $positionsNew['BlindLevel'] = $positionsContactOpenBlind['BlindLevel'];
                 $positionsNew['SlatsLevel'] = $positionsContactOpenBlind['SlatsLevel'];
                 $bNoMove                    = false;
                 $Hinweis                    = $openBlindHint;
                 $deactivationTimeAuto       = 0;
                 $this->WriteAttributeBoolean(self::ATTR_CONTACT_OPEN, true);
-                $this->Logger_Dbg(__FUNCTION__, $openBlindHint . ' (Balkontür: Open-Kontakt erzwingt Position)');
+                $this->Logger_Dbg(__FUNCTION__, $openBlindHint . ' (Fenstergriff-Vorrang: Position erzwungen)');
             } else {
                 // Normalmodus: Kontakt wirkt als Limit
                 $checkResult = $this->checkContactLimit($positionsAct, $positionsNew, $positionsContactOpenBlind, true);
@@ -1339,6 +1355,7 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterPropertyFloat(self::PROP_CONTACTCLOSESLATSLEVEL2, 0);
         $this->RegisterPropertyBoolean(self::PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY, false);
         $this->RegisterPropertyBoolean(self::PROP_BALCONY_DOOR, false);
+        $this->RegisterPropertyInteger(self::PROP_PRIORITY_MODE, 1); // Standard: Sonnenauf/-untergang
 
         //contacts open
         $this->RegisterPropertyInteger(self::PROP_CONTACTOPEN1ID, 0);

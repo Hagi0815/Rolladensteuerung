@@ -867,7 +867,26 @@
                 {
                     "type": "CheckBox",
                     "name": "BalconyDoor",
-                    "caption": "Balkontür: Fenstergriff hat immer Vorrang vor Wochenplan und Beschattung"
+                    "caption": "Balkontür: Fenstergriff hat immer Vorrang (alternativ: Vorrang über Priorität unten setzen)"
+                },
+                {
+                    "type": "Label",
+                    "caption": "── Vorrang-Einstellung ─────────────────────────────────────────────"
+                },
+                {
+                    "type": "RowLayout",
+                    "items": [
+                        {
+                            "type": "Select",
+                            "name": "PriorityMode",
+                            "caption": "Steuerungsvorrang",
+                            "options": [
+                                { "caption": "Wochenplan (Zeiten entscheiden, Tagerkennung ignoriert)", "value": 0 },
+                                { "caption": "Sonnenauf-/-untergang (Tagerkennung hat Vorrang vor Wochenplan)", "value": 1 },
+                                { "caption": "Fenstergriff (Kontakte überschreiben Wochenplan und Beschattung)", "value": 2 }
+                            ]
+                        }
+                    ]
                 },
                 {
                     "type": "ExpansionPanel",
