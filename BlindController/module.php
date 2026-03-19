@@ -2,10 +2,6 @@
 
 declare(strict_types=1);
 
-if (function_exists('IPSUtils_Include')) {
-    IPSUtils_Include('IPSLogger.inc.php', 'IPSLibrary::app::core::IPSLogger');
-}
-
 /** @noinspection AutoloadingIssuesInspection */
 class Rolladensteuerung extends IPSModuleStrict
 {
@@ -1522,9 +1518,6 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterPropertyFloat(self::PROP_MINMOVEMENT, 5.0);
         $this->RegisterPropertyFloat(self::PROP_MINMOVEMENTATENDPOSITION, 2.5);
         $this->RegisterPropertyBoolean(self::PROP_SHOWNOTUSEDELEMENTS, false);
-        $this->RegisterPropertyBoolean('WriteLogInformationToIPSLogger', false);
-        $this->RegisterPropertyBoolean('WriteDebugInformationToLogfile', false);
-        $this->RegisterPropertyBoolean('WriteDebugInformationToIPSLogger', false);
     }
 
     private function RegisterReferences(): void
@@ -3906,35 +3899,19 @@ class Rolladensteuerung extends IPSModuleStrict
     private function Logger_Err(string $message): void
     {
         $this->SendDebug('LOG_ERR', $message, 0);
-        if (function_exists('IPSLogger_Err') && $this->ReadPropertyBoolean('WriteLogInformationToIPSLogger')) {
-            IPSLogger_Err(__CLASS__, $message);
-        }
-
         $this->LogMessage($message, KL_ERROR);
-
         $this->SetValue(self::VAR_IDENT_LAST_MESSAGE, $message);
     }
 
     private function Logger_Inf(string $message): void
     {
         $this->SendDebug('LOG_INFO', $message, 0);
-        if (function_exists('IPSLogger_Inf') && $this->ReadPropertyBoolean('WriteLogInformationToIPSLogger')) {
-            IPSLogger_Inf(__CLASS__, $message);
-        } else {
-            $this->LogMessage($message, KL_NOTIFY);
-        }
-
+        $this->LogMessage($message, KL_NOTIFY);
         $this->SetValue(self::VAR_IDENT_LAST_MESSAGE, $message);
     }
 
     private function Logger_Dbg(string $message, string $data): void
     {
         $this->SendDebug($message, $data, 0);
-        if (function_exists('IPSLogger_Dbg') && $this->ReadPropertyBoolean('WriteDebugInformationToIPSLogger')) {
-            IPSLogger_Dbg(__CLASS__ . '.' . $this->objectName . '.' . $message, $data);
-        }
-        if ($this->ReadPropertyBoolean('WriteDebugInformationToLogfile')) {
-            $this->LogMessage(sprintf('%s: %s', $message, $data), KL_DEBUG);
-        }
     }
 }
