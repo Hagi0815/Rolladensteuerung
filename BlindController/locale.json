@@ -107,7 +107,7 @@
       "Emergency Contact (optional)": "Notfall Kontakt (optional)",
       "Emergency contact ID": "Notfall Kontakt ID",
       "Define an emergency contact. The blind is opened immediately if the contact is open. Additionally the automatic is deactivated.":
-      "Angabe eines Notfall Kontakts. Der Rollladen wird sofort geöffnet wenn der Kontakt offen ist. Zugleich wird die Automatik außer Betrieb genommen.",
+      "Angabe eines Notfall Kontakts. Der Rollladen wird sofort geöffnet wenn der Status true ist. Zugleich wird die Automatik außer Betrieb genommen.",
       "Expert Parameters": "Experten Einstellungen",
       "Update Interval": "Steuerungsintervall",
       "Deactivation Time after automatic Movement": "Zeit der Deaktivierung nach automatischer Fahrt",
