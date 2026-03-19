@@ -922,11 +922,15 @@ class Rolladensteuerung extends IPSModuleStrict
         $brightness          = null;
         $isDayByDayDetection = $this->getIsDayByDayDetection($brightness, $currentBlindLevel);
 
-        // Morgens (Wochenplan sagt: Tag) oder abends (Wochenplan sagt: Nacht)?
-        // true = Wochenplan-Zeit für Tag erreicht → morgens → Auffahren
-        // false = Wochenplan-Zeit für Nacht → abends → Zufahren
-        $isMorningPhase  = ($isDayByTimeSchedule === true);
-        $priorityMode    = $isMorningPhase
+        // Morgens oder abends?
+        // Der letzte bekannte Zustand (AttrIsDay) zeigt ob wir gerade von Nacht→Tag (morgens)
+        // oder von Tag→Nacht (abends) wechseln.
+        // War es zuletzt "Nacht" (false) → wir sind in der Morgenphase (Auffahren)
+        // War es zuletzt "Tag" (true)   → wir sind in der Abendphase (Zufahren)
+        $lastIsDay    = $this->ReadAttributeBoolean('AttrIsDay');
+        $isMorningPhase = !$lastIsDay; // Nacht→Tag = morgens, Tag→Nacht = abends
+
+        $priorityMode = $isMorningPhase
             ? $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING)
             : $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
 
