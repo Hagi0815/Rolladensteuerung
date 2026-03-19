@@ -1464,13 +1464,6 @@
             "items": [
                 {
                     "type": "NumberSpinner",
-                    "name": "UpdateInterval",
-                    "caption": "Update Interval",
-                    "suffix": "Minutes",
-                    "minimum": 0
-                },
-                {
-                    "type": "NumberSpinner",
                     "name": "DeactivationAutomaticMovement",
                     "caption": "Deactivation Time after automatic Movement",
                     "suffix": "Minutes",

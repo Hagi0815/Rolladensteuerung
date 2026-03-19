@@ -184,7 +184,6 @@ class Rolladensteuerung extends IPSModuleStrict
     private const string PROP_DAYENDID                                    = 'DayEndID';
 
     //expert
-    private const string PROP_UPDATEINTERVAL                = 'UpdateInterval';
     private const string PROP_DEACTIVATIONAUTOMATICMOVEMENT = 'DeactivationAutomaticMovement';
     private const string PROP_DEACTIVATIONMANUALMOVEMENT    = 'DeactivationManualMovement';
     private const string PROP_MINMOVEMENT                   = 'MinMovement';
@@ -201,10 +200,11 @@ class Rolladensteuerung extends IPSModuleStrict
     private const string ATTR_CONTACT_OPEN             = 'AttrContactOpen';
     private const string ATTR_DAYTIME_CHANGE_TIME      = 'DaytimeChangeTime';
     private const string ATTR_LAST_ISDAYBYTIMESCHEDULE = 'LastIsDayByTimeSchedule';
+    private const string ATTR_IS_MORNING                = 'AttrIsMorning'; // true = letzter Wechsel war Nacht→Tag
+    private const string ATTR_LAST_CLOSE_TRIGGER        = 'LastCloseTrigger'; // 'isday' | 'schedule' | ''
     private const string ATTR_LIGHT_STATE              = 'LightState'; // letzter Lichtzustand pro Kontakt
 
     //timer names
-    private const string TIMER_UPDATE           = 'Update';
     private const string TIMER_DELAYED_MOVEMENT = 'DelayedMovement';
 
 
@@ -244,7 +244,6 @@ class Rolladensteuerung extends IPSModuleStrict
 
         $this->RegisterAttributes();
 
-        $this->RegisterTimer(self::TIMER_UPDATE, 0, 'BLC_ControlBlind(' . $this->InstanceID . ', true);');
         $this->RegisterTimer(
             self::TIMER_DELAYED_MOVEMENT,
             0,
@@ -558,6 +557,7 @@ class Rolladensteuerung extends IPSModuleStrict
             case EM_UPDATE:
                 // Wochenplan-Schaltpunkt: nur Steuerungslauf auslösen, KEIN SetInstanceStatusAndTimerEvent
                 if ($this->GetValue(self::VAR_IDENT_ACTIVATED) && IPS_GetKernelRunlevel() === KR_READY) {
+                    $this->setTriggerStatus('Wochenplan');
                     $this->RegisterOnceTimer(
                         'BlindControlTimer_ControlBlind',
                         sprintf('BLC_ControlBlind(%s, true);', $this->InstanceID)
@@ -566,9 +566,18 @@ class Rolladensteuerung extends IPSModuleStrict
                 break;
 
             case VM_UPDATE:
-            case VM_CHANGEPROFILEACTION:
                 // Nur reagieren wenn sich der Wert tatsächlich geändert hat ($Data[1] = true)
-                $this->handleUpdateMessage($SenderID, $Data, true);
+                if (($Data[1] ?? null) === false) {
+                    break;
+                }
+
+                // BlindLevel-Variable: nur manuelle Bewegung erkennen, KEIN ControlBlind auslösen
+                if ($SenderID === $this->ReadPropertyInteger(self::PROP_BLINDLEVELID)) {
+                    $this->detectManualMovement();
+                    break;
+                }
+
+                $this->handleUpdateMessage($SenderID, $Data, false);
                 break;
         }
     }
@@ -606,9 +615,94 @@ class Rolladensteuerung extends IPSModuleStrict
         );
 
         if (IPS_GetKernelRunlevel() === KR_READY) {
+            // Auslöser-Name ermitteln und sofort in Status schreiben
+            $triggerName = $this->getTriggerName($SenderID);
+            $this->setTriggerStatus($triggerName);
+
             $considerDeactivation = $isTriggerSource ? 'false' : 'true';
             $this->RegisterOnceTimer('BlindControlTimer_ControlBlind',sprintf('BLC_ControlBlind(%s, %s);', $this->InstanceID, $considerDeactivation));
         }
+    }
+
+    /**
+     * Ermittelt einen lesbaren Namen für die auslösende Variable/Ereignis.
+     */
+    private function getTriggerName(int $senderID): string
+    {
+        // Bekannte Properties mit lesbaren Namen
+        $knownSources = [
+            self::PROP_ISDAYINDICATORID       => 'IsDay',
+            self::PROP_BRIGHTNESSID           => 'Helligkeit',
+            self::PROP_BRIGHTNESSTHRESHOLDID  => 'Helligkeitsschwelle',
+            self::PROP_HOLIDAYINDICATORID     => 'Feiertag',
+            self::PROP_CONTACTOPEN1ID         => 'Kontakt 1 (Öffnen)',
+            self::PROP_CONTACTOPEN2ID         => 'Kontakt 2 (Öffnen)',
+            self::PROP_CONTACTCLOSE1ID        => 'Kontakt 1 (Schließen)',
+            self::PROP_CONTACTCLOSE2ID        => 'Kontakt 2 (Schließen)',
+            self::PROP_EMERGENCYCONTACTID     => 'Notfallkontakt',
+            self::PROP_ACTIVATORIDSHADOWINGBRIGHTNESS    => 'Beschattung Helligkeit',
+            self::PROP_ACTIVATORIDSHADOWINGBYSUNPOSITION => 'Beschattung Sonnenstand',
+        ];
+
+        foreach ($knownSources as $prop => $label) {
+            if ($this->ReadPropertyInteger($prop) === $senderID) {
+                // Objektnamen der Variable anhängen falls verfügbar
+                if (IPS_ObjectExists($senderID)) {
+                    return $label . ' (' . IPS_GetObject($senderID)['ObjectName'] . ')';
+                }
+                return $label;
+            }
+        }
+
+        // Fallback: Objektname aus IPS
+        if (IPS_ObjectExists($senderID)) {
+            return IPS_GetObject($senderID)['ObjectName'];
+        }
+
+        return sprintf('Variable #%d', $senderID);
+    }
+
+    /**
+     * Schreibt den Auslöser sofort in die Status-Variable (vor dem eigentlichen Steuerungslauf).
+     */
+    private function setTriggerStatus(string $triggerName): void
+    {
+        $msg = date('H:i:s') . ' | Ausgelöst durch: ' . $triggerName . ' | Steuerung läuft...';
+        $this->SetValue(self::VAR_IDENT_LAST_MESSAGE, $msg);
+    }
+
+    /**
+     * Erkennt ob der Rollladen manuell bewegt wurde und schreibt sofort in LAST_MESSAGE.
+     * Wird direkt bei VM_UPDATE der BlindLevel-Variable aufgerufen.
+     */
+    private function detectManualMovement(): void
+    {
+        $tsAutomatic = $this->ReadAttributeInteger(self::ATTR_TIMESTAMP_AUTOMATIC);
+        $blindLevelId = $this->ReadPropertyInteger(self::PROP_BLINDLEVELID);
+
+        if (!IPS_VariableExists($blindLevelId)) {
+            return;
+        }
+
+        $tsLastMovement = IPS_GetVariable($blindLevelId)['VariableChanged'];
+
+        // Karenzzeit: war die letzte Bewegung automatisch (innerhalb 5 Sek)?
+        if ($tsLastMovement <= strtotime('+5 sec', $tsAutomatic)) {
+            return; // Automatische Bewegung – ignorieren
+        }
+
+        // Manuelle Bewegung erkannt → sofort Status schreiben
+        $blindLevelAct = (float)GetValue($blindLevelId);
+        $this->profileBlindLevel = $this->GetPresentationInformation(self::PROP_BLINDLEVELID);
+        if ($this->profileBlindLevel === null) {
+            return;
+        }
+
+        $percentOpen = 100 - $this->calculateNormalizedLevel($blindLevelAct, $this->profileBlindLevel);
+        $msg = date('H:i:s') . ' | Manuelle Bedienung | Öffnung: ' . $percentOpen . '%';
+        $this->SetValue(self::VAR_IDENT_LAST_MESSAGE, $msg);
+
+        $this->Logger_Dbg(__FUNCTION__, 'Manuelle Bewegung erkannt: ' . $percentOpen . '% offen');
     }
 
     /**
@@ -895,6 +989,13 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->applyLightControl();
 
         // --- 8. Status-Meldung aktualisieren ---
+        // Auslöser aus vorheriger Meldung extrahieren (wurde bereits beim Triggern gesetzt)
+        $prevMsg     = $this->GetValue(self::VAR_IDENT_LAST_MESSAGE);
+        $triggerPart = '';
+        if (preg_match('/Ausgelöst durch: (.+?) \|/', $prevMsg, $m)) {
+            $triggerPart = ' | Auslöser: ' . $m[1];
+        }
+
         // Anzeige: 0% = geschlossen, 100% = geöffnet (invertiert zu percentClose)
         $statusMsg = date('H:i:s') . ' | ';
         $statusMsg .= $Hinweis !== '' ? $Hinweis : ($bNoMove ? 'Keine Bewegung (Sperre)' : 'Keine Änderung');
@@ -902,6 +1003,7 @@ class Rolladensteuerung extends IPSModuleStrict
         if ($slatsLevel !== -1) {
             $statusMsg .= sprintf(' / %d%%', 100 - $slatsLevel);
         }
+        $statusMsg .= $triggerPart;
         $this->SetValue(self::VAR_IDENT_LAST_MESSAGE, $statusMsg);
 
         //im Notfall wird die Automatik NICHT automatisch deaktiviert – nur Benutzer/Boolean darf deaktivieren
@@ -918,23 +1020,10 @@ class Rolladensteuerung extends IPSModuleStrict
         $brightness          = null;
         $isDayByDayDetection = $this->getIsDayByDayDetection($brightness, $currentBlindLevel);
 
-        // Phase bestimmen anhand der Übergangsrichtung:
-        // Wir wechseln von Nacht→Tag (morgens) oder von Tag→Nacht (abends).
-        // Kein Wechsel: Phase anhand des aktuellen Zustands.
-        $lastIsDay = $this->ReadAttributeBoolean('AttrIsDay');
-
-        if (!$lastIsDay && $isDayByTimeSchedule === true) {
-            // Nacht→Tag Übergang laut Wochenplan → definitiv Morgen
-            $isMorningPhase = true;
-        } elseif ($lastIsDay && $isDayByTimeSchedule === false) {
-            // Tag→Nacht Übergang laut Wochenplan → definitiv Abend
-            $isMorningPhase = false;
-        } else {
-            // Kein Wechsel: aktuellen Zustand nehmen
-            // isDay=true → wir sind im Tag → letzter Wechsel war morgens → Morgen-Modus
-            // isDay=false → wir sind in der Nacht → letzter Wechsel war abends → Abend-Modus
-            $isMorningPhase = !$lastIsDay;
-        }
+        // Phase aus letztem gespeicherten Wechsel lesen:
+        // ATTR_IS_MORNING = true: letzter Wechsel war Nacht→Tag (morgens)
+        // ATTR_IS_MORNING = false: letzter Wechsel war Tag→Nacht (abends)
+        $isMorningPhase = $this->ReadAttributeBoolean(self::ATTR_IS_MORNING);
 
         $priorityMode = $isMorningPhase
             ? $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING)
@@ -988,8 +1077,27 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         if ($dayState['isDay']) {
+            // Auffahren blockieren wenn IsDay zugefahren hat UND der aktuelle Modus nicht rein Wochenplan ist:
+            // Bei PriorityMode=0 (Wochenplan) entscheidet der WP allein → keine Blockierung
+            // Bei PriorityMode=1/2 (Sonnenauf/-untergang): wenn IsDay zugefahren hat, darf nur IsDay=true wieder auffahren
+            $lastCloseTrigger = $this->ReadAttributeString(self::ATTR_LAST_CLOSE_TRIGGER);
+            $priorityMode     = $dayState['priorityMode'] ?? 1;
+            if ($lastCloseTrigger === 'isday'
+                && $priorityMode !== 0
+                && $dayState['isDayByDayDetection'] !== true
+            ) {
+                // IsDay hat zugefahren, Wochenplan darf nicht überschreiben
+                $this->Logger_Dbg(__FUNCTION__, 'Auffahren blockiert: IsDay hat zugefahren, nur IsDay=true darf wieder auffahren');
+                $hint = 'Gesperrt (IsDay)';
+                return ['positions' => $positionsAct, 'hint' => $hint];
+            }
+            // Auffahren: Trigger zurücksetzen
+            $this->WriteAttributeString(self::ATTR_LAST_CLOSE_TRIGGER, '');
             $positionsNew = $this->calculateDayPosition($positionsNew);
         } else {
+            // Zufahren: Auslöser merken
+            $trigger = ($dayState['isDayByDayDetection'] === false) ? 'isday' : 'schedule';
+            $this->WriteAttributeString(self::ATTR_LAST_CLOSE_TRIGGER, $trigger);
             $positionsNew = $this->calculateNightPosition($positionsNew);
             if ($this->ReadPropertyBoolean(self::PROP_ACTIVATEDINDIVIDUALNIGHTLEVELS)) {
                 $hint .= ', indiv.Pos.';
@@ -1522,7 +1630,6 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterPropertyInteger(self::PROP_EMERGENCYCONTACTID, 0);
 
 
-        $this->RegisterPropertyInteger(self::PROP_UPDATEINTERVAL, 1);
         $this->RegisterPropertyInteger(self::PROP_DEACTIVATIONAUTOMATICMOVEMENT, 20);
         $this->RegisterPropertyInteger(self::PROP_DEACTIVATIONMANUALMOVEMENT, 120);
         $this->RegisterPropertyFloat(self::PROP_MINMOVEMENT, 5.0);
@@ -1579,35 +1686,27 @@ class Rolladensteuerung extends IPSModuleStrict
 
     private function RegisterMessages(): void
     {
+        // Nur Quellen die einen Steuerungslauf auslösen sollen:
+        // - Wochenplan (EM_UPDATE)
+        // - IsDay-Indikator / Helligkeit für Tagerkennung
+        // - Kontakte (Öffnen, Schließen, Notfall)
+        // - Feiertag-Indikator
+        // NICHT mehr: Azimuth, Altitude, Helligkeitssensoren für Beschattung (kein Zyklus)
         $objectIDs = [
-            self::PROP_WEEKLYTIMETABLEEVENTID                      => $this->ReadPropertyInteger(self::PROP_WEEKLYTIMETABLEEVENTID),
-            self::PROP_HOLIDAYINDICATORID                          => $this->ReadPropertyInteger(self::PROP_HOLIDAYINDICATORID),
-            self::PROP_BRIGHTNESSID                                => $this->ReadPropertyInteger(self::PROP_BRIGHTNESSID),
-            self::PROP_BRIGHTNESSTHRESHOLDID                       => $this->ReadPropertyInteger(self::PROP_BRIGHTNESSTHRESHOLDID),
-            self::PROP_ISDAYINDICATORID                            => $this->ReadPropertyInteger(self::PROP_ISDAYINDICATORID),
-            self::PROP_CONTACTCLOSE1ID                             => $this->ReadPropertyInteger(self::PROP_CONTACTCLOSE1ID),
-            self::PROP_CONTACTCLOSE2ID                             => $this->ReadPropertyInteger(self::PROP_CONTACTCLOSE2ID),
-            self::PROP_CONTACTOPEN1ID                              => $this->ReadPropertyInteger(self::PROP_CONTACTOPEN1ID),
-            self::PROP_CONTACTOPEN2ID                              => $this->ReadPropertyInteger(self::PROP_CONTACTOPEN2ID),
-            self::PROP_EMERGENCYCONTACTID                          => $this->ReadPropertyInteger(self::PROP_EMERGENCYCONTACTID),
-            self::PROP_ACTIVATORIDSHADOWINGBYSUNPOSITION           => $this->ReadPropertyInteger(self::PROP_ACTIVATORIDSHADOWINGBYSUNPOSITION),
-            self::PROP_AZIMUTHID                                   => $this->ReadPropertyInteger(self::PROP_AZIMUTHID),
-            self::PROP_ALTITUDEID                                  => $this->ReadPropertyInteger(self::PROP_ALTITUDEID),
-            self::PROP_BRIGHTNESSIDSHADOWINGBYSUNPOSITION          => $this->ReadPropertyInteger(self::PROP_BRIGHTNESSIDSHADOWINGBYSUNPOSITION),
-            self::PROP_BRIGHTNESSTHRESHOLDIDSHADOWINGBYSUNPOSITION => $this->ReadPropertyInteger(
-                self::PROP_BRIGHTNESSTHRESHOLDIDSHADOWINGBYSUNPOSITION
-            ),
-            self::PROP_TEMPERATUREIDSHADOWINGBYSUNPOSITION         => $this->ReadPropertyInteger(self::PROP_TEMPERATUREIDSHADOWINGBYSUNPOSITION),
-            self::PROP_ACTIVATORIDSHADOWINGBRIGHTNESS              => $this->ReadPropertyInteger(self::PROP_ACTIVATORIDSHADOWINGBRIGHTNESS),
-            self::PROP_BRIGHTNESSIDSHADOWINGBRIGHTNESS             => $this->ReadPropertyInteger(self::PROP_BRIGHTNESSIDSHADOWINGBRIGHTNESS),
-            self::PROP_THRESHOLDIDHIGHBRIGHTNESS                   => $this->ReadPropertyInteger(self::PROP_THRESHOLDIDHIGHBRIGHTNESS),
-            self::PROP_THRESHOLDIDLESSBRIGHTNESS                   => $this->ReadPropertyInteger(self::PROP_THRESHOLDIDLESSBRIGHTNESS)
+            self::PROP_WEEKLYTIMETABLEEVENTID => $this->ReadPropertyInteger(self::PROP_WEEKLYTIMETABLEEVENTID),
+            self::PROP_HOLIDAYINDICATORID     => $this->ReadPropertyInteger(self::PROP_HOLIDAYINDICATORID),
+            self::PROP_ISDAYINDICATORID       => $this->ReadPropertyInteger(self::PROP_ISDAYINDICATORID),
+            self::PROP_BRIGHTNESSID           => $this->ReadPropertyInteger(self::PROP_BRIGHTNESSID),
+            self::PROP_BRIGHTNESSTHRESHOLDID  => $this->ReadPropertyInteger(self::PROP_BRIGHTNESSTHRESHOLDID),
+            self::PROP_CONTACTCLOSE1ID        => $this->ReadPropertyInteger(self::PROP_CONTACTCLOSE1ID),
+            self::PROP_CONTACTCLOSE2ID        => $this->ReadPropertyInteger(self::PROP_CONTACTCLOSE2ID),
+            self::PROP_CONTACTOPEN1ID         => $this->ReadPropertyInteger(self::PROP_CONTACTOPEN1ID),
+            self::PROP_CONTACTOPEN2ID         => $this->ReadPropertyInteger(self::PROP_CONTACTOPEN2ID),
+            self::PROP_EMERGENCYCONTACTID     => $this->ReadPropertyInteger(self::PROP_EMERGENCYCONTACTID),
+            self::PROP_ACTIVATORIDSHADOWINGBRIGHTNESS => $this->ReadPropertyInteger(self::PROP_ACTIVATORIDSHADOWINGBRIGHTNESS),
+            self::PROP_ACTIVATORIDSHADOWINGBYSUNPOSITION => $this->ReadPropertyInteger(self::PROP_ACTIVATORIDSHADOWINGBYSUNPOSITION),
         ];
 
-        $objectIDs_RequiredAction = [
-            self::PROP_BLINDLEVELID => $this->ReadPropertyInteger(self::PROP_BLINDLEVELID),
-            self::PROP_SLATSLEVELID => $this->ReadPropertyInteger(self::PROP_SLATSLEVELID),
-        ];
         foreach ($this->GetMessageList() as $senderId => $msgs) {
             foreach ($msgs as $msg) {
                 $this->UnregisterMessage($senderId, $msg);
@@ -1622,11 +1721,13 @@ class Rolladensteuerung extends IPSModuleStrict
             }
         }
 
-        foreach ($objectIDs_RequiredAction as $id) {
-            if (IPS_VariableExists($id)) {
-                $this->RegisterMessage($id, VM_CHANGEPROFILEACTION);
-            }
+        // BlindLevel-Variable beobachten um manuelle Bewegungen sofort zu erkennen
+        // (löst KEINEN ControlBlind-Lauf aus, nur LAST_MESSAGE-Update)
+        $blindLevelId = $this->ReadPropertyInteger(self::PROP_BLINDLEVELID);
+        if (IPS_VariableExists($blindLevelId)) {
+            $this->RegisterMessage($blindLevelId, VM_UPDATE);
         }
+        // VM_CHANGEPROFILEACTION nicht mehr registrieren – kein Zyklus durch Aktor-Rückmeldung
     }
 
     private function RegisterAttributes(): void
@@ -1651,6 +1752,8 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterAttributeInteger(self::ATTR_DAYTIME_CHANGE_TIME, 0);
         $this->RegisterAttributeBoolean(self::ATTR_LAST_ISDAYBYTIMESCHEDULE, false);
         $this->RegisterAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
+        $this->RegisterAttributeBoolean(self::ATTR_IS_MORNING, true); // Start: Morgen-Phase annehmen
+        $this->RegisterAttributeString(self::ATTR_LAST_CLOSE_TRIGGER, ''); // wer hat zuletzt zugefahren
     }
 
     private function RegisterVariables(): void
@@ -2048,9 +2151,8 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         if ($this->GetValue(self::VAR_IDENT_ACTIVATED)) {
-            $this->SetTimerInterval(self::TIMER_UPDATE, $this->ReadPropertyInteger(self::PROP_UPDATEINTERVAL) * 60 * 1000);
+            // Kein zyklischer Timer mehr – Steuerung nur durch Wochenplan, IsDay und Notfallkontakt
         } else {
-            $this->SetTimerInterval(self::TIMER_UPDATE, 0);
             $this->SetTimerInterval(self::TIMER_DELAYED_MOVEMENT, 0);
             $this->SetStatus(IS_INACTIVE);
             return;
@@ -2254,7 +2356,9 @@ class Rolladensteuerung extends IPSModuleStrict
             }
             $this->WriteAttributeBoolean('AttrIsDay', $isDay);
             $this->WriteAttributeInteger('AttrTimeStampIsDayChange', time());
-            $this->Logger_Dbg(__FUNCTION__, 'DayChange!');
+            // Phase merken: Nacht→Tag = morgens, Tag→Nacht = abends
+            $this->WriteAttributeBoolean(self::ATTR_IS_MORNING, $isDay);
+            $this->Logger_Dbg(__FUNCTION__, 'DayChange! isMorning=' . ($isDay ? 'true' : 'false'));
             $dayState['isDay'] = $isDay;
             return true;
         }
