@@ -1022,24 +1022,26 @@ class Rolladensteuerung extends IPSModuleStrict
         $lastIsDay      = $this->ReadAttributeBoolean('AttrIsDay');
         $isMorningPhase = $this->ReadAttributeBoolean(self::ATTR_IS_MORNING);
 
-        // Welcher isDay-Wert gilt für den aktuellen Lauf?
-        // Wir brauchen das BEVOR checkIsDayChange AttrIsDay aktualisiert,
-        // damit wir den richtigen PriorityMode (morgens/abends) wählen können.
-        // Wir berechnen isDay temporär um die Übergangsrichtung zu erkennen:
-        // - Wenn lastIsDay=true und einer der Quellen jetzt false → Übergang Tag→Nacht → Abend-Modus
-        // - Wenn lastIsDay=false und einer der Quellen jetzt true → Übergang Nacht→Tag → Morgen-Modus
-        // - Kein Wechsel → gespeicherte Phase beibehalten
-        $tentativeIsDayByWP  = $isDayByTimeSchedule ?? false;
-        $tentativeIsDayByDay = $isDayByDayDetection ?? $lastIsDay;
+        // Phase nur dann neu bestimmen wenn sich isDay tatsächlich ändert.
+        // Basis: welchen isDay-Wert liefert die aktive Priorität?
+        // Vorläufig mit gespeicherter Phase berechnen um Übergang zu erkennen:
+        $currentPriorityMode = $isMorningPhase
+            ? $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING)
+            : $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
 
-        if ($lastIsDay && (!$tentativeIsDayByWP || !$tentativeIsDayByDay)) {
-            // Mindestens eine Quelle sagt Nacht → Übergang Tag→Nacht = Abend
+        $tentativeIsDay = ($currentPriorityMode === 0)
+            ? ($isDayByTimeSchedule ?? false)
+            : ($isDayByDayDetection ?? ($isDayByTimeSchedule ?? false));
+
+        // Übergang erkennen: Hat sich isDay gegenüber dem gespeicherten Wert geändert?
+        if ($lastIsDay === true && $tentativeIsDay === false) {
+            // Tag→Nacht: Abend-Modus
             $isMorningPhase = false;
-        } elseif (!$lastIsDay && ($tentativeIsDayByWP || $tentativeIsDayByDay)) {
-            // Mindestens eine Quelle sagt Tag → Übergang Nacht→Tag = Morgen
+        } elseif ($lastIsDay === false && $tentativeIsDay === true) {
+            // Nacht→Tag: Morgen-Modus
             $isMorningPhase = true;
         }
-        // sonst: kein Wechsel, isMorningPhase bleibt wie gespeichert
+        // Kein Wechsel: Phase bleibt wie gespeichert
 
         $priorityMode = $isMorningPhase
             ? $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING)
