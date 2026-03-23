@@ -974,7 +974,7 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         // --- 5. Kontakte (Fenster/Notfall) prüfen und Positionen ggf. überschreiben ---
-        $contactResult = $this->applyContactLogic($positionsAct, $positionsNew, $deactivationTimeAuto, $bNoMove, $Hinweis, $dayState['priorityMode'] ?? 1);
+        $contactResult = $this->applyContactLogic($positionsAct, $positionsNew, $deactivationTimeAuto, $bNoMove, $Hinweis, $dayState['priorityMode'] ?? 1, $dayState['isDay']);
 
         $positionsNew         = $contactResult['positions'];
         $deactivationTimeAuto = $contactResult['deactivationTimeAuto'];
@@ -1030,23 +1030,18 @@ class Rolladensteuerung extends IPSModuleStrict
         $lastIsDay      = $this->ReadAttributeBoolean('AttrIsDay');
         $isMorningPhase = $this->ReadAttributeBoolean(self::ATTR_IS_MORNING);
 
-        // Phase nur dann neu bestimmen wenn sich isDay tatsächlich ändert.
-        // Basis: welchen isDay-Wert liefert die aktive Priorität?
-        // Vorläufig mit gespeicherter Phase berechnen um Übergang zu erkennen:
-        $currentPriorityMode = $isMorningPhase
-            ? $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING)
-            : $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
+        // Übergang erkennen: beide Modi prüfen um Henne-Ei-Problem zu lösen
+        // Morgen-Modus: Was sagt die Morgen-Priorität?
+        $morningMode       = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING);
+        $eveningMode       = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
+        $isDayByMorning    = ($morningMode === 0) ? ($isDayByTimeSchedule ?? false) : ($isDayByDayDetection ?? ($isDayByTimeSchedule ?? false));
+        $isDayByEvening    = ($eveningMode === 0) ? ($isDayByTimeSchedule ?? false) : ($isDayByDayDetection ?? ($isDayByTimeSchedule ?? false));
 
-        $tentativeIsDay = ($currentPriorityMode === 0)
-            ? ($isDayByTimeSchedule ?? false)
-            : ($isDayByDayDetection ?? ($isDayByTimeSchedule ?? false));
-
-        // Übergang erkennen: Hat sich isDay gegenüber dem gespeicherten Wert geändert?
-        if ($lastIsDay === true && $tentativeIsDay === false) {
-            // Tag→Nacht: Abend-Modus
+        if ($lastIsDay === true && $isDayByEvening === false) {
+            // Abend-Modus sagt jetzt Nacht → Übergang Tag→Nacht = Abend
             $isMorningPhase = false;
-        } elseif ($lastIsDay === false && $tentativeIsDay === true) {
-            // Nacht→Tag: Morgen-Modus
+        } elseif ($lastIsDay === false && $isDayByMorning === true) {
+            // Morgen-Modus sagt jetzt Tag → Übergang Nacht→Tag = Morgen
             $isMorningPhase = true;
         }
         // Kein Wechsel: Phase bleibt wie gespeichert
@@ -1262,7 +1257,7 @@ class Rolladensteuerung extends IPSModuleStrict
      * @return array{positions: array, deactivationTimeAuto: int, bNoMove: bool, hint: string, bEmergency: bool}
      * @throws \JsonException
      */
-    private function applyContactLogic(array $positionsAct, array $positionsNew, int $deactivationTimeAuto, bool $bNoMove, string $Hinweis, int $priorityMode = 1): array
+    private function applyContactLogic(array $positionsAct, array $positionsNew, int $deactivationTimeAuto, bool $bNoMove, string $Hinweis, int $priorityMode = 1, bool $isDay = false): array
     {
         $this->Logger_Dbg(
             __FUNCTION__,
@@ -1299,9 +1294,9 @@ class Rolladensteuerung extends IPSModuleStrict
             ];
         }
 
-        // 2. Öffnen/Schließen-Kontakte nur aktiv wenn Nachtphase (Rollladen ist zu)
-        // → AttrIsDay=false bedeutet der Rollladen soll/ist geschlossen
-        $isNightPhase = !$this->ReadAttributeBoolean('AttrIsDay');
+        // 2. Öffnen/Schließen-Kontakte nur aktiv wenn Nachtphase (isDay=false)
+        // isDay kommt direkt aus determineDayState – nicht AttrIsDay (der wird erst später aktualisiert)
+        $isNightPhase = !$isDay;
         if (!$isNightPhase && ($positionsContactOpenBlind !== null || $positionsContactCloseBlind !== null)) {
             $this->Logger_Dbg(__FUNCTION__, 'Kontakte inaktiv: kein Nachtbetrieb (Rollladen ist offen)');
             // Trotzdem AttrContactOpen zurücksetzen falls nötig
