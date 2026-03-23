@@ -865,11 +865,6 @@
                     "caption": "Contacts to close the blind have a higher priority than the ones to open"
                 },
                 {
-                    "type": "CheckBox",
-                    "name": "BalconyDoor",
-                    "caption": "Balkontür: Fenstergriff hat immer Vorrang (alternativ: Vorrang über Priorität unten setzen)"
-                },
-                {
                     "type": "Label",
                     "caption": "── Vorrang-Einstellung ─────────────────────────────────────────────"
                 },
@@ -881,18 +876,8 @@
                             "name": "PriorityModeMorning",
                             "caption": "Vorrang morgens (Rollladen fährt auf)",
                             "options": [
-                                {
-                                    "caption": "Wochenplan (Uhrzeit entscheidet)",
-                                    "value": 0
-                                },
-                                {
-                                    "caption": "Sonnenaufgang (Helligkeit/IsDay hat Vorrang)",
-                                    "value": 1
-                                },
-                                {
-                                    "caption": "Fenstergriff (Kontakt überschreibt alles)",
-                                    "value": 2
-                                }
+                                { "caption": "Wochenplan (Uhrzeit entscheidet, IsDay ignoriert)", "value": 0 },
+                                { "caption": "IsDay / Helligkeit (Sensor entscheidet, Wochenplan ignoriert)", "value": 1 }
                             ]
                         },
                         {
@@ -900,18 +885,8 @@
                             "name": "PriorityModeEvening",
                             "caption": "Vorrang abends (Rollladen fährt zu)",
                             "options": [
-                                {
-                                    "caption": "Wochenplan (Uhrzeit entscheidet)",
-                                    "value": 0
-                                },
-                                {
-                                    "caption": "Sonnenuntergang (Helligkeit/IsDay hat Vorrang)",
-                                    "value": 1
-                                },
-                                {
-                                    "caption": "Fenstergriff (Kontakt überschreibt alles)",
-                                    "value": 2
-                                }
+                                { "caption": "Wochenplan (Uhrzeit entscheidet, IsDay ignoriert)", "value": 0 },
+                                { "caption": "IsDay / Helligkeit (Sensor entscheidet, Wochenplan ignoriert)", "value": 1 }
                             ]
                         }
                     ]

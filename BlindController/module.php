@@ -126,10 +126,9 @@ class Rolladensteuerung extends IPSModuleStrict
     private const string PROP_CONTACT2_LIGHT_CONDITION_VAR      = 'Contact2LightConditionVar';
     private const string PROP_EMERGENCYCONTACTID                = 'EmergencyContactID';
     private const string PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY = 'ContactsToCloseHaveHigherPriority';
-    private const string PROP_BALCONY_DOOR                      = 'BalconyDoor';
     private const string PROP_PRIORITY_MODE_MORNING             = 'PriorityModeMorning';
     private const string PROP_PRIORITY_MODE_EVENING             = 'PriorityModeEvening';
-    // PriorityMode: 0 = Wochenplan, 1 = Sonnenauf/-untergang, 2 = Fenstergriff
+    // PriorityMode: 0 = Wochenplan, 1 = IsDay/Helligkeit
 
     //shadowing, according to sun position
     private const string PROP_ACTIVATORIDSHADOWINGBYSUNPOSITION           = 'ActivatorIDShadowingBySunPosition';
@@ -1020,30 +1019,26 @@ class Rolladensteuerung extends IPSModuleStrict
         $brightness          = null;
         $isDayByDayDetection = $this->getIsDayByDayDetection($brightness, $currentBlindLevel);
 
-        // Phase aus letztem gespeicherten Wechsel lesen:
-        // ATTR_IS_MORNING = true: letzter Wechsel war Nacht→Tag (morgens)
-        // ATTR_IS_MORNING = false: letzter Wechsel war Tag→Nacht (abends)
         $isMorningPhase = $this->ReadAttributeBoolean(self::ATTR_IS_MORNING);
-
-        $priorityMode = $isMorningPhase
+        $priorityMode   = $isMorningPhase
             ? $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING)
             : $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
 
         $phaseLabel = $isMorningPhase ? 'Morgens' : 'Abends';
 
-        // Prioritätsmodus:
-        // 0 = Wochenplan: entscheidet allein, Tagerkennung ignoriert
-        // 1 = Sonnenauf/-untergang: Tagerkennung hat Vorrang, Wochenplan ist Fallback
-        // 2 = Fenstergriff: wie 1, Kontakte überschreiben zusätzlich alles
+        // PriorityMode 0 = Wochenplan: Wochenplan entscheidet allein, IsDay ignoriert
+        // PriorityMode 1 = IsDay: IsDay/Helligkeit entscheidet allein, Wochenplan ignoriert
+        //                         Ist kein IsDay-Sensor konfiguriert → Fallback Wochenplan
         if ($priorityMode === 0) {
             $isDay = $isDayByTimeSchedule;
-            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: PriorityMode = Wochenplan");
+            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: Priorität = Wochenplan → isDay={$isDayByTimeSchedule}");
         } elseif ($isDayByDayDetection !== null) {
             $isDay = $isDayByDayDetection;
-            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: PriorityMode = Sonnenauf/-untergang (DayDetection aktiv)");
+            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: Priorität = IsDay → isDay={$isDayByDayDetection}");
         } else {
+            // Kein IsDay-Sensor konfiguriert → Wochenplan als Fallback
             $isDay = $isDayByTimeSchedule;
-            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: PriorityMode = Wochenplan (Fallback, kein DayDetection-Sensor)");
+            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: Priorität = IsDay (Fallback WP, kein Sensor) → isDay={$isDayByTimeSchedule}");
         }
 
         return [
@@ -1077,26 +1072,23 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         if ($dayState['isDay']) {
-            // Auffahren blockieren wenn IsDay zugefahren hat UND der aktuelle Modus nicht rein Wochenplan ist:
-            // Bei PriorityMode=0 (Wochenplan) entscheidet der WP allein → keine Blockierung
-            // Bei PriorityMode=1/2 (Sonnenauf/-untergang): wenn IsDay zugefahren hat, darf nur IsDay=true wieder auffahren
+            // Auffahren:
+            // Wenn IsDay-Modus (1) und IsDay hat zugefahren → nur IsDay=true darf wieder auffahren
             $lastCloseTrigger = $this->ReadAttributeString(self::ATTR_LAST_CLOSE_TRIGGER);
-            $priorityMode     = $dayState['priorityMode'] ?? 1;
+            $priorityMode     = $dayState['priorityMode'] ?? 0;
             if ($lastCloseTrigger === 'isday'
-                && $priorityMode !== 0
+                && $priorityMode === 1
                 && $dayState['isDayByDayDetection'] !== true
             ) {
-                // IsDay hat zugefahren, Wochenplan darf nicht überschreiben
                 $this->Logger_Dbg(__FUNCTION__, 'Auffahren blockiert: IsDay hat zugefahren, nur IsDay=true darf wieder auffahren');
                 $hint = 'Gesperrt (IsDay)';
                 return ['positions' => $positionsAct, 'hint' => $hint];
             }
-            // Auffahren: Trigger zurücksetzen
             $this->WriteAttributeString(self::ATTR_LAST_CLOSE_TRIGGER, '');
             $positionsNew = $this->calculateDayPosition($positionsNew);
         } else {
             // Zufahren: Auslöser merken
-            $trigger = ($dayState['isDayByDayDetection'] === false) ? 'isday' : 'schedule';
+            $trigger = ($dayState['priorityMode'] === 1) ? 'isday' : 'schedule';
             $this->WriteAttributeString(self::ATTR_LAST_CLOSE_TRIGGER, $trigger);
             $positionsNew = $this->calculateNightPosition($positionsNew);
             if ($this->ReadPropertyBoolean(self::PROP_ACTIVATEDINDIVIDUALNIGHTLEVELS)) {
@@ -1237,14 +1229,13 @@ class Rolladensteuerung extends IPSModuleStrict
         $openBlindHint              = $openBlindResult !== null ? $openBlindResult['hint'] : 'Kontakt offen';
         $positionsContactCloseBlind = $this->getPositionsOfCloseBlindContact();
 
-        // 1. Notfall hat höchste Priorität
+        // 1. Notfall hat höchste Priorität – immer aktiv
         if ($levelContactEmergency !== null) {
             $this->WriteAttributeBoolean(self::ATTR_CONTACT_OPEN, true);
             $this->Logger_Dbg(
                 __FUNCTION__,
                 sprintf('NOTFALL: Kontakt geöffnet (posAct: %.2f, posNew: %.2f)', $positionsAct['BlindLevel'], $levelContactEmergency)
             );
-
             $positionsNew['BlindLevel'] = $levelContactEmergency;
             return [
                 'positions'            => $positionsNew,
@@ -1255,7 +1246,28 @@ class Rolladensteuerung extends IPSModuleStrict
             ];
         }
 
-        // 2. Priorität zwischen Öffnen/Schließen klären
+        // 2. Öffnen/Schließen-Kontakte nur aktiv wenn Nachtphase (Rollladen ist zu)
+        // → AttrIsDay=false bedeutet der Rollladen soll/ist geschlossen
+        $isNightPhase = !$this->ReadAttributeBoolean('AttrIsDay');
+        if (!$isNightPhase && ($positionsContactOpenBlind !== null || $positionsContactCloseBlind !== null)) {
+            $this->Logger_Dbg(__FUNCTION__, 'Kontakte inaktiv: kein Nachtbetrieb (Rollladen ist offen)');
+            // Trotzdem AttrContactOpen zurücksetzen falls nötig
+            if ($this->ReadAttributeBoolean(self::ATTR_CONTACT_OPEN)) {
+                $this->WriteAttributeBoolean(self::ATTR_CONTACT_OPEN, false);
+                $deactivationTimeAuto = 0;
+            }
+            $result = [
+                'positions'            => $positionsNew,
+                'deactivationTimeAuto' => $deactivationTimeAuto,
+                'bNoMove'              => $bNoMove,
+                'hint'                 => $Hinweis,
+                'bEmergency'           => false
+            ];
+            $this->Logger_Dbg(__FUNCTION__, 'Result: ' . json_encode($result, JSON_THROW_ON_ERROR));
+            return $result;
+        }
+
+        // 3. Priorität zwischen Öffnen/Schließen klären
         if ($positionsContactOpenBlind !== null && $positionsContactCloseBlind !== null) {
             if ($this->ReadPropertyBoolean(self::PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY)) {
                 $positionsContactOpenBlind = null;
@@ -1264,46 +1276,31 @@ class Rolladensteuerung extends IPSModuleStrict
             }
         }
 
-        // 3. Kontakte prüfen
+        // 4. Kontakte auswerten
         if ($positionsContactOpenBlind !== null) {
-            $fenstergriffVorrang = $this->ReadPropertyBoolean(self::PROP_BALCONY_DOOR)
-                                   || $priorityMode === 2;
-
-            if ($fenstergriffVorrang) {
-                // Fenstergriff-Vorrang: Position direkt erzwingen (Vorrang vor Wochenplan und Beschattung)
-                $positionsNew['BlindLevel'] = $positionsContactOpenBlind['BlindLevel'];
-                $positionsNew['SlatsLevel'] = $positionsContactOpenBlind['SlatsLevel'];
-                $bNoMove                    = false;
-                $Hinweis                    = $openBlindHint;
-                $deactivationTimeAuto       = 0;
-                $this->WriteAttributeBoolean(self::ATTR_CONTACT_OPEN, true);
-                $this->Logger_Dbg(__FUNCTION__, $openBlindHint . ' (Fenstergriff-Vorrang: Position erzwungen)');
-            } else {
-                // Normalmodus: Kontakt wirkt als Limit
-                $checkResult = $this->checkContactLimit($positionsAct, $positionsNew, $positionsContactOpenBlind, true);
-                if ($checkResult['modified']) {
-                    $bNoMove      = false;
-                    $positionsNew = $checkResult['positions'];
-                    $Hinweis      = $openBlindHint;
-                    if ($checkResult['resetDeactivation']) {
-                        $deactivationTimeAuto = 0;
-                    }
-                    $this->WriteAttributeBoolean(self::ATTR_CONTACT_OPEN, true);
-                    $this->Logger_Dbg(__FUNCTION__, $openBlindHint . ' (Open-Logik angewendet)');
+            // Öffnen-Kontakt: wirkt als Mindestöffnung (Limit nach oben)
+            $checkResult = $this->checkContactLimit($positionsAct, $positionsNew, $positionsContactOpenBlind, true);
+            if ($checkResult['modified']) {
+                $bNoMove      = false;
+                $positionsNew = $checkResult['positions'];
+                $Hinweis      = $openBlindHint;
+                if ($checkResult['resetDeactivation']) {
+                    $deactivationTimeAuto = 0;
                 }
+                $this->WriteAttributeBoolean(self::ATTR_CONTACT_OPEN, true);
+                $this->Logger_Dbg(__FUNCTION__, $openBlindHint . ' (Open-Limit angewendet)');
             }
         } elseif ($positionsContactCloseBlind !== null) {
             $checkResult = $this->checkContactLimit($positionsAct, $positionsNew, $positionsContactCloseBlind, false);
             if ($checkResult['modified']) {
                 $bNoMove              = false;
                 $positionsNew         = $checkResult['positions'];
-                $Hinweis              = 'Kontakt offen';
+                $Hinweis              = 'Kontakt offen (Schließen)';
                 $deactivationTimeAuto = 0;
                 $this->WriteAttributeBoolean(self::ATTR_CONTACT_OPEN, true);
-                $this->Logger_Dbg(__FUNCTION__, 'Kontakt geöffnet (Close-Logik angewendet)');
+                $this->Logger_Dbg(__FUNCTION__, 'Kontakt geöffnet (Close-Limit angewendet)');
             }
         } elseif ($this->ReadAttributeBoolean(self::ATTR_CONTACT_OPEN)) {
-            // Reset, wenn kein Kontakt mehr aktiv ist
             $deactivationTimeAuto = 0;
             $this->WriteAttributeBoolean(self::ATTR_CONTACT_OPEN, false);
         }
@@ -1363,15 +1360,16 @@ class Rolladensteuerung extends IPSModuleStrict
                 continue;
             }
 
-            // Neuen Zustand speichern
-            $lastStates[$i] = $state;
-
             // Freigabe-Variable prüfen (optional): wenn gesetzt, muss sie true sein
             $conditionVarId = $this->ReadPropertyInteger("Contact{$i}LightConditionVar");
             if (IPS_VariableExists($conditionVarId) && !GetValueBoolean($conditionVarId)) {
                 $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Lichtsteuerung gesperrt (Freigabe-Variable #%d = false)', $i, $conditionVarId));
+                // Zustand NICHT speichern – beim nächsten Aufruf erneut prüfen falls Freigabe inzwischen true
                 continue;
             }
+
+            // Neuen Zustand erst jetzt speichern (nach Freigabe-Prüfung)
+            $lastStates[$i] = $state;
 
             $stateKey = match ($state) {
                 0 => 'Closed',
@@ -1591,9 +1589,8 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterPropertyFloat(self::PROP_CONTACTCLOSESLATSLEVEL1, 0);
         $this->RegisterPropertyFloat(self::PROP_CONTACTCLOSESLATSLEVEL2, 0);
         $this->RegisterPropertyBoolean(self::PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY, false);
-        $this->RegisterPropertyBoolean(self::PROP_BALCONY_DOOR, false);
-        $this->RegisterPropertyInteger(self::PROP_PRIORITY_MODE_MORNING, 1); // Standard: Sonnenaufgang
-        $this->RegisterPropertyInteger(self::PROP_PRIORITY_MODE_EVENING, 1); // Standard: Sonnenuntergang
+        $this->RegisterPropertyInteger(self::PROP_PRIORITY_MODE_MORNING, 0); // Standard: Wochenplan
+        $this->RegisterPropertyInteger(self::PROP_PRIORITY_MODE_EVENING, 0); // Standard: Wochenplan
 
         //contacts open
         $this->RegisterPropertyInteger(self::PROP_CONTACTOPEN1ID, 0);
