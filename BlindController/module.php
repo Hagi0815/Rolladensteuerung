@@ -878,6 +878,14 @@ class Rolladensteuerung extends IPSModuleStrict
         // globale Instanzvariablen setzen
         $this->profileBlindLevel = $this->GetPresentationInformation(self::PROP_BLINDLEVELID);
 
+        // Debug: Profilwerte ausgeben
+        $this->Logger_Dbg('Profile', sprintf(
+            'BlindLevel: MinValue=%.4f (=offen), MaxValue=%.4f (=geschlossen), isReversed=%s',
+            $this->profileBlindLevel['MinValue'] ?? 0,
+            $this->profileBlindLevel['MaxValue'] ?? 0,
+            ($this->profileBlindLevel !== null && $this->isMinMaxReversed($this->profileBlindLevel['MinValue'], $this->profileBlindLevel['MaxValue'])) ? 'JA' : 'NEIN'
+        ));
+
         // $deactivationTimeAuto: Zeitraum, in dem das automatisch gesetzte Level
         // erhalten bleibt, bevor es überschrieben wird.
         if ($considerDeactivationTimeAuto) {
@@ -1162,10 +1170,14 @@ class Rolladensteuerung extends IPSModuleStrict
             if ($contactResult['positions']['SlatsLevel'] !== null) {
                 $positions['SlatsLevel'] = $contactResult['positions']['SlatsLevel'];
             }
+            $normalizedPercent = $this->calculateNormalizedLevel($positions['BlindLevel'], $this->profileBlindLevel);
             $this->Logger_Dbg(__FUNCTION__, sprintf(
-                'Nachtposition durch Kontakt begrenzt: BlindLevel=%.2f (%s)',
+                'Kontakt-Position: BlindLevel=%.4f → %d%% geschlossen (%s), Profil: min=%.4f max=%.4f',
                 $positions['BlindLevel'],
-                $contactResult['hint']
+                $normalizedPercent,
+                $contactResult['hint'],
+                $this->profileBlindLevel['MinValue'],
+                $this->profileBlindLevel['MaxValue']
             ));
             return $positions;
         }
