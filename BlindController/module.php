@@ -1151,6 +1151,23 @@ class Rolladensteuerung extends IPSModuleStrict
 
     private function calculateNightPosition(array $positions): array
     {
+        // Kontaktzustand prüfen: wenn ein Öffnen-Kontakt aktiv ist,
+        // wird dessen konfigurierte Position als Nachtposition verwendet
+        // (statt komplett zu schließen)
+        $contactResult = $this->getPositionsOfOpenBlindContact();
+        if ($contactResult !== null) {
+            $positions['BlindLevel'] = $contactResult['positions']['BlindLevel'];
+            if ($contactResult['positions']['SlatsLevel'] !== null) {
+                $positions['SlatsLevel'] = $contactResult['positions']['SlatsLevel'];
+            }
+            $this->Logger_Dbg(__FUNCTION__, sprintf(
+                'Nachtposition durch Kontakt begrenzt: BlindLevel=%.2f (%s)',
+                $positions['BlindLevel'],
+                $contactResult['hint']
+            ));
+            return $positions;
+        }
+
         if ($this->ReadPropertyBoolean(self::PROP_ACTIVATEDINDIVIDUALNIGHTLEVELS)) {
             $positions['BlindLevel'] = $this->ReadPropertyFloat(self::PROP_NIGHTBLINDLEVEL);
             $positions['SlatsLevel'] = $this->ReadPropertyFloat(self::PROP_NIGHTSLATSLEVEL);
