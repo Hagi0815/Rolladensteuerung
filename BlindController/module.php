@@ -1019,8 +1019,29 @@ class Rolladensteuerung extends IPSModuleStrict
         $brightness          = null;
         $isDayByDayDetection = $this->getIsDayByDayDetection($brightness, $currentBlindLevel);
 
+        $lastIsDay      = $this->ReadAttributeBoolean('AttrIsDay');
         $isMorningPhase = $this->ReadAttributeBoolean(self::ATTR_IS_MORNING);
-        $priorityMode   = $isMorningPhase
+
+        // Welcher isDay-Wert gilt für den aktuellen Lauf?
+        // Wir brauchen das BEVOR checkIsDayChange AttrIsDay aktualisiert,
+        // damit wir den richtigen PriorityMode (morgens/abends) wählen können.
+        // Wir berechnen isDay temporär um die Übergangsrichtung zu erkennen:
+        // - Wenn lastIsDay=true und einer der Quellen jetzt false → Übergang Tag→Nacht → Abend-Modus
+        // - Wenn lastIsDay=false und einer der Quellen jetzt true → Übergang Nacht→Tag → Morgen-Modus
+        // - Kein Wechsel → gespeicherte Phase beibehalten
+        $tentativeIsDayByWP  = $isDayByTimeSchedule ?? false;
+        $tentativeIsDayByDay = $isDayByDayDetection ?? $lastIsDay;
+
+        if ($lastIsDay && (!$tentativeIsDayByWP || !$tentativeIsDayByDay)) {
+            // Mindestens eine Quelle sagt Nacht → Übergang Tag→Nacht = Abend
+            $isMorningPhase = false;
+        } elseif (!$lastIsDay && ($tentativeIsDayByWP || $tentativeIsDayByDay)) {
+            // Mindestens eine Quelle sagt Tag → Übergang Nacht→Tag = Morgen
+            $isMorningPhase = true;
+        }
+        // sonst: kein Wechsel, isMorningPhase bleibt wie gespeichert
+
+        $priorityMode = $isMorningPhase
             ? $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING)
             : $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
 
@@ -1031,14 +1052,14 @@ class Rolladensteuerung extends IPSModuleStrict
         //                         Ist kein IsDay-Sensor konfiguriert → Fallback Wochenplan
         if ($priorityMode === 0) {
             $isDay = $isDayByTimeSchedule;
-            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: Priorität = Wochenplan → isDay={$isDayByTimeSchedule}");
+            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: Priorität = Wochenplan → isDay=" . var_export($isDayByTimeSchedule, true));
         } elseif ($isDayByDayDetection !== null) {
             $isDay = $isDayByDayDetection;
-            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: Priorität = IsDay → isDay={$isDayByDayDetection}");
+            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: Priorität = IsDay → isDay=" . var_export($isDayByDayDetection, true));
         } else {
             // Kein IsDay-Sensor konfiguriert → Wochenplan als Fallback
             $isDay = $isDayByTimeSchedule;
-            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: Priorität = IsDay (Fallback WP, kein Sensor) → isDay={$isDayByTimeSchedule}");
+            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: Priorität = IsDay (Fallback WP, kein Sensor) → isDay=" . var_export($isDayByTimeSchedule, true));
         }
 
         return [
@@ -1047,6 +1068,7 @@ class Rolladensteuerung extends IPSModuleStrict
             'isDayByDayDetection' => $isDayByDayDetection,
             'brightness'          => $brightness,
             'priorityMode'        => $priorityMode,
+            'isMorningPhase'      => $isMorningPhase,
         ];
     }
 
