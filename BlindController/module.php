@@ -3980,11 +3980,61 @@ class Rolladensteuerung extends IPSModuleStrict
             return null;
         }
 
-        $reversed = strcasecmp('reversed', end($profileNameParts)) === 0; //Groß-/Kleinschreibung wird ignoriert
+        $reversed = strcasecmp('reversed', end($profileNameParts)) === 0;
 
+        // Bei reversed Profil: MinValue und MaxValue tauschen
+        // Ergebnis: MinValue = immer der "offen"-Wert, MaxValue = immer der "geschlossen"-Wert
+        $rawMin = $profile['MinValue'];
+        $rawMax = $profile['MaxValue'];
+
+        if ($reversed) {
+            // .Reversed: höherer Wert = offen (z.B. 1=auf, 0=zu → getauscht: Min=1=auf, Max=0=zu)
+            return [
+                'MinValue'  => $rawMax,
+                'MaxValue'  => $rawMin,
+            ];
+        }
+
+        // Ohne .Reversed: prüfen ob Profil-Assoziationen oder Konvention offen=min oder offen=max
+        // Bei Homematic HM-Profil: 0=zu, 1=auf → MaxValue=auf=offen → openIsMax
+        // Bei Standardprofil Rolladen: 0=auf, 100=zu → MinValue=auf=offen → openIsMin
+        // Heuristik: wenn MinValue < MaxValue und das Profil NICHT reversed heißt,
+        // ist MinValue=offen (Standardfall Symcon-Rolladen-Profil: 0=offen, 100=zu)
+        // AUSNAHME: HM-Profil 0=zu, 1=auf → hier ist MinValue=zu → muss getauscht werden
+        // Erkennungsmerkmal: Profilname enthält 'HM' oder Assoziationen haben "auf" bei MaxValue
+
+        // Zuverlässigste Methode: Profilassoziationen auswerten
+        $associations = $profile['Associations'] ?? [];
+        if (!empty($associations)) {
+            // Sortiere nach Value und prüfe ob der kleinste Wert "zu" oder "auf" bedeutet
+            usort($associations, fn($a, $b) => $a['Value'] <=> $b['Value']);
+            $minAssoc = $associations[0];
+            $maxAssoc = end($associations);
+
+            $minName = strtolower($minAssoc['Name'] ?? '');
+            $maxName = strtolower($maxAssoc['Name'] ?? '');
+
+            // Wenn der kleinste Wert "auf", "open", "offen" enthält → openIsMin (Standard)
+            // Wenn der größte Wert "auf", "open", "offen" enthält → openIsMax (HM-Stil)
+            $openKeywords = ['auf', 'open', 'offen', 'up'];
+            $closeKeywords = ['zu', 'close', 'closed', 'down'];
+
+            $minIsOpen  = array_reduce($openKeywords,  fn($c, $k) => $c || str_contains($minName, $k), false);
+            $maxIsOpen  = array_reduce($openKeywords,  fn($c, $k) => $c || str_contains($maxName, $k), false);
+
+            if ($maxIsOpen && !$minIsOpen) {
+                // HM-Stil: MaxValue=auf → tauschen damit MinValue=auf
+                return [
+                    'MinValue' => $rawMax,
+                    'MaxValue' => $rawMin,
+                ];
+            }
+        }
+
+        // Standard: MinValue=offen, MaxValue=geschlossen
         return [
-            'MinValue' => $reversed ? $profile['MaxValue'] : $profile['MinValue'],
-            'MaxValue' => $reversed ? $profile['MinValue'] : $profile['MaxValue'],
+            'MinValue' => $rawMin,
+            'MaxValue' => $rawMax,
         ];
     }
 
