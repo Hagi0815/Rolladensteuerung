@@ -1099,15 +1099,12 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         if ($dayState['isDay']) {
-            // Auffahren:
-            // Wenn IsDay-Modus (1) und IsDay hat zugefahren → nur IsDay=true darf wieder auffahren
+            // Auffahren blockieren wenn IsDay zugefahren hat und IsDay noch nicht wieder true ist.
+            // Das gilt unabhängig vom aktuellen priorityMode (z.B. morgens=WP, abends=IsDay):
+            // Wenn IsDay abends zugefahren hat, darf WP morgens nicht auffahren solange IsDay noch false ist.
             $lastCloseTrigger = $this->ReadAttributeString(self::ATTR_LAST_CLOSE_TRIGGER);
-            $priorityMode     = $dayState['priorityMode'] ?? 0;
-            if ($lastCloseTrigger === 'isday'
-                && $priorityMode === 1
-                && $dayState['isDayByDayDetection'] !== true
-            ) {
-                $this->Logger_Dbg(__FUNCTION__, 'Auffahren blockiert: IsDay hat zugefahren, nur IsDay=true darf wieder auffahren');
+            if ($lastCloseTrigger === 'isday' && $dayState['isDayByDayDetection'] !== true) {
+                $this->Logger_Dbg(__FUNCTION__, 'Auffahren blockiert: IsDay hat zugefahren, IsDay ist noch nicht true');
                 $hint = 'Gesperrt (IsDay)';
                 return ['positions' => $positionsAct, 'hint' => $hint];
             }
@@ -1115,7 +1112,9 @@ class Rolladensteuerung extends IPSModuleStrict
             $positionsNew = $this->calculateDayPosition($positionsNew);
         } else {
             // Zufahren: Auslöser merken
-            $trigger = ($dayState['priorityMode'] === 1) ? 'isday' : 'schedule';
+            // Abend-PriorityMode bestimmt ob IsDay oder WP zugefahren hat
+            $eveningMode = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
+            $trigger     = ($eveningMode === 1) ? 'isday' : 'schedule';
             $this->WriteAttributeString(self::ATTR_LAST_CLOSE_TRIGGER, $trigger);
             $positionsNew = $this->calculateNightPosition($positionsNew);
             if ($this->ReadPropertyBoolean(self::PROP_ACTIVATEDINDIVIDUALNIGHTLEVELS)) {
