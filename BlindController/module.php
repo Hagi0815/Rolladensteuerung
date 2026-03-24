@@ -200,7 +200,6 @@ class Rolladensteuerung extends IPSModuleStrict
     private const string ATTR_DAYTIME_CHANGE_TIME      = 'DaytimeChangeTime';
     private const string ATTR_LAST_ISDAYBYTIMESCHEDULE = 'LastIsDayByTimeSchedule';
     private const string ATTR_IS_MORNING                = 'AttrIsMorning'; // true = letzter Wechsel war Nacht→Tag
-    private const string ATTR_LAST_CLOSE_TRIGGER        = 'LastCloseTrigger'; // 'isday' | 'schedule' | ''
     private const string ATTR_LIGHT_STATE              = 'LightState'; // letzter Lichtzustand pro Kontakt
 
     //timer names
@@ -1027,53 +1026,52 @@ class Rolladensteuerung extends IPSModuleStrict
         $brightness          = null;
         $isDayByDayDetection = $this->getIsDayByDayDetection($brightness, $currentBlindLevel);
 
-        $lastIsDay      = $this->ReadAttributeBoolean('AttrIsDay');
-        $isMorningPhase = $this->ReadAttributeBoolean(self::ATTR_IS_MORNING);
+        $morningMode = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING);
+        $eveningMode = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
 
-        // Übergang erkennen: beide Modi prüfen um Henne-Ei-Problem zu lösen
-        // Morgen-Modus: Was sagt die Morgen-Priorität?
-        $morningMode       = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING);
-        $eveningMode       = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
-        $isDayByMorning    = ($morningMode === 0) ? ($isDayByTimeSchedule ?? false) : ($isDayByDayDetection ?? ($isDayByTimeSchedule ?? false));
-        $isDayByEvening    = ($eveningMode === 0) ? ($isDayByTimeSchedule ?? false) : ($isDayByDayDetection ?? ($isDayByTimeSchedule ?? false));
-
-        if ($lastIsDay === true && $isDayByEvening === false) {
-            // Abend-Modus sagt jetzt Nacht → Übergang Tag→Nacht = Abend
-            $isMorningPhase = false;
-        } elseif ($lastIsDay === false && $isDayByMorning === true) {
-            // Morgen-Modus sagt jetzt Tag → Übergang Nacht→Tag = Morgen
-            $isMorningPhase = true;
-        }
-        // Kein Wechsel: Phase bleibt wie gespeichert
-
-        $priorityMode = $isMorningPhase
-            ? $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING)
-            : $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
-
-        $phaseLabel = $isMorningPhase ? 'Morgens' : 'Abends';
-
-        // PriorityMode 0 = Wochenplan: Wochenplan entscheidet allein, IsDay ignoriert
-        // PriorityMode 1 = IsDay: IsDay/Helligkeit entscheidet allein, Wochenplan ignoriert
-        //                         Ist kein IsDay-Sensor konfiguriert → Fallback Wochenplan
-        if ($priorityMode === 0) {
-            $isDay = $isDayByTimeSchedule;
-            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: Priorität = Wochenplan → isDay=" . var_export($isDayByTimeSchedule, true));
-        } elseif ($isDayByDayDetection !== null) {
-            $isDay = $isDayByDayDetection;
-            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: Priorität = IsDay → isDay=" . var_export($isDayByDayDetection, true));
+        // Morgen-Quelle: sagt ob es Zeit ist aufzufahren
+        // 0 = Wochenplan, 1 = IsDay
+        if ($morningMode === 0) {
+            $shouldOpen = ($isDayByTimeSchedule === true);
         } else {
-            // Kein IsDay-Sensor konfiguriert → Wochenplan als Fallback
-            $isDay = $isDayByTimeSchedule;
-            $this->Logger_Dbg(__FUNCTION__, "{$phaseLabel}: Priorität = IsDay (Fallback WP, kein Sensor) → isDay=" . var_export($isDayByTimeSchedule, true));
+            // IsDay-Modus: kein Sensor → Fallback Wochenplan
+            $shouldOpen = ($isDayByDayDetection !== null) ? ($isDayByDayDetection === true) : ($isDayByTimeSchedule === true);
         }
+
+        // Abend-Quelle: sagt ob es Zeit ist zuzufahren
+        // 0 = Wochenplan, 1 = IsDay
+        if ($eveningMode === 0) {
+            $shouldClose = ($isDayByTimeSchedule === false);
+        } else {
+            $shouldClose = ($isDayByDayDetection !== null) ? ($isDayByDayDetection === false) : ($isDayByTimeSchedule === false);
+        }
+
+        // isDay = auffahren erlaubt UND kein Schließbefehl aktiv
+        // Wenn shouldOpen und shouldClose gleichzeitig (unterschiedliche Quellen widersprüchlich):
+        // Schließen hat Vorrang (Sicherheit)
+        if ($shouldClose) {
+            $isDay = false;
+        } elseif ($shouldOpen) {
+            $isDay = true;
+        } else {
+            // Keiner sagt klar – gespeicherten Zustand beibehalten
+            $isDay = $this->ReadAttributeBoolean('AttrIsDay');
+        }
+
+        $this->Logger_Dbg(__FUNCTION__, sprintf(
+            'morningMode=%d shouldOpen=%s, eveningMode=%d shouldClose=%s → isDay=%s',
+            $morningMode, $shouldOpen ? 'true' : 'false',
+            $eveningMode, $shouldClose ? 'true' : 'false',
+            $isDay ? 'true' : 'false'
+        ));
 
         return [
             'isDay'               => $isDay,
             'isDayByTimeSchedule' => $isDayByTimeSchedule,
             'isDayByDayDetection' => $isDayByDayDetection,
             'brightness'          => $brightness,
-            'priorityMode'        => $priorityMode,
-            'isMorningPhase'      => $isMorningPhase,
+            'priorityMode'        => $morningMode, // für Beschattung/Kontakte weiterhin gebraucht
+            'isMorningPhase'      => !$this->ReadAttributeBoolean('AttrIsDay'), // für ATTR_IS_MORNING
         ];
     }
 
@@ -1099,23 +1097,8 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         if ($dayState['isDay']) {
-            // Auffahren blockieren wenn IsDay zugefahren hat und IsDay noch nicht wieder true ist.
-            // Das gilt unabhängig vom aktuellen priorityMode (z.B. morgens=WP, abends=IsDay):
-            // Wenn IsDay abends zugefahren hat, darf WP morgens nicht auffahren solange IsDay noch false ist.
-            $lastCloseTrigger = $this->ReadAttributeString(self::ATTR_LAST_CLOSE_TRIGGER);
-            if ($lastCloseTrigger === 'isday' && $dayState['isDayByDayDetection'] !== true) {
-                $this->Logger_Dbg(__FUNCTION__, 'Auffahren blockiert: IsDay hat zugefahren, IsDay ist noch nicht true');
-                $hint = 'Gesperrt (IsDay)';
-                return ['positions' => $positionsAct, 'hint' => $hint];
-            }
-            $this->WriteAttributeString(self::ATTR_LAST_CLOSE_TRIGGER, '');
             $positionsNew = $this->calculateDayPosition($positionsNew);
         } else {
-            // Zufahren: Auslöser merken
-            // Abend-PriorityMode bestimmt ob IsDay oder WP zugefahren hat
-            $eveningMode = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
-            $trigger     = ($eveningMode === 1) ? 'isday' : 'schedule';
-            $this->WriteAttributeString(self::ATTR_LAST_CLOSE_TRIGGER, $trigger);
             $positionsNew = $this->calculateNightPosition($positionsNew);
             if ($this->ReadPropertyBoolean(self::PROP_ACTIVATEDINDIVIDUALNIGHTLEVELS)) {
                 $hint .= ', indiv.Pos.';
@@ -1797,7 +1780,6 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterAttributeBoolean(self::ATTR_LAST_ISDAYBYTIMESCHEDULE, false);
         $this->RegisterAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
         $this->RegisterAttributeBoolean(self::ATTR_IS_MORNING, true); // Start: Morgen-Phase annehmen
-        $this->RegisterAttributeString(self::ATTR_LAST_CLOSE_TRIGGER, ''); // wer hat zuletzt zugefahren
     }
 
     private function RegisterVariables(): void
