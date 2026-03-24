@@ -1,10 +1,10 @@
 {
   "id": "{153CE11A-48A3-48F4-A022-140A3F7509DB}",
-  "author": "Hagi",
+  "author": "Christian Hagedorn",
   "name": "Rolladensteuerung",
   "url": "",
   "compatibility": {
-    "version": "8.1",
+    "version": "8.0",
     "date": 0
   },
   "version": "2.50",
