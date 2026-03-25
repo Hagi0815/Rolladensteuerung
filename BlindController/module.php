@@ -3727,16 +3727,29 @@ class Rolladensteuerung extends IPSModuleStrict
 
     private function getIsDayByTimeSchedule(): ?bool
     {
-        //Ermitteln, welche Zeiten heute und gestern gelten
-
-        $heute_auf = null;
-        $heute_ab  = null;
-
-        if (!$this->getUpAndDownPoints($heute_auf, $heute_ab)) {
+        $weeklyTimeTableEventId = $this->ReadPropertyInteger(self::PROP_WEEKLYTIMETABLEEVENTID);
+        if (!$event = @IPS_GetEvent($weeklyTimeTableEventId)) {
             return null;
         }
-        $this->SendDebug(__FUNCTION__, sprintf('heute_auf: %s, heute_ab: %s', $heute_auf, $heute_ab), 0);
-        return ($heute_auf !== null) && (time() >= strtotime($heute_auf)) && ($heute_ab === null || (time() <= strtotime($heute_ab)));
+
+        // Direkt den aktuell aktiven Aktions-ID aus dem Wochenplan lesen
+        // ActionID 1 = Tag (auf), ActionID 2 = Nacht (zu)
+        // IPS_GetEvent liefert 'EventActive' = die aktuell gültige ActionID
+        $currentActionID = $event['EventActive'] ?? null;
+
+        if ($currentActionID === null) {
+            return null;
+        }
+
+        $isDay = ($currentActionID === 1);
+
+        $this->Logger_Dbg(__FUNCTION__, sprintf(
+            'WP aktive Aktion: %d → isDay=%s',
+            $currentActionID,
+            $isDay ? 'true' : 'false'
+        ));
+
+        return $isDay;
     }
 
     //-------------------------------------
