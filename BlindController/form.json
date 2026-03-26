@@ -11,6 +11,12 @@
             ]
         },
         {
+            "type": "OpenObjectButton",
+            "name": "BlindLevelIDLink",
+            "caption": "Variable anzeigen",
+            "objectID": "$BlindLevelID"
+        },
+        {
             "type": "SelectVariable",
             "name": "SlatsLevelID",
             "caption": "Slats Level ID (optional)",
@@ -20,6 +26,12 @@
                 2
             ],
             "onChange": "IPS_RequestAction($id, 'SlatsLevelID', $SlatsLevelID);"
+        },
+        {
+            "type": "OpenObjectButton",
+            "name": "SlatsLevelIDLink",
+            "caption": "Variable anzeigen",
+            "objectID": "$SlatsLevelID"
         },
         {
             "type": "ExpansionPanel",
@@ -49,6 +61,12 @@
                                                 0
                                             ],
                                             "onChange": "IPS_RequestAction($id, 'HolidayIndicatorID', $HolidayIndicatorID);"
+                                        },
+                                        {
+                                            "type": "OpenObjectButton",
+                                            "name": "HolidayIndicatorIDLink",
+                                            "caption": "Variable anzeigen",
+                                            "objectID": "$HolidayIndicatorID"
                                         },
                                         {
                                             "type": "Select",
@@ -110,6 +128,12 @@
                                             "onChange": "IPS_RequestAction($id,'WakeUpTimeID',$WakeUpTimeID);"
                                         },
                                         {
+                                            "type": "OpenObjectButton",
+                                            "name": "WakeUpTimeIDLink",
+                                            "caption": "Variable anzeigen",
+                                            "objectID": "$WakeUpTimeID"
+                                        },
+                                        {
                                             "type": "NumberSpinner",
                                             "name": "WakeUpTimeOffset",
                                             "caption": "Wake-Up Time Offset",
@@ -128,6 +152,12 @@
                                                 3
                                             ],
                                             "onChange": "IPS_RequestAction($id,'BedTimeID',$BedTimeID);"
+                                        },
+                                        {
+                                            "type": "OpenObjectButton",
+                                            "name": "BedTimeIDLink",
+                                            "caption": "Variable anzeigen",
+                                            "objectID": "$BedTimeID"
                                         },
                                         {
                                             "type": "NumberSpinner",
@@ -200,6 +230,12 @@
                             "caption": "Is Day Indicator ID"
                         },
                         {
+                            "type": "OpenObjectButton",
+                            "name": "IsDayIndicatorIDLink",
+                            "caption": "Variable anzeigen",
+                            "objectID": "$IsDayIndicatorID"
+                        },
+                        {
                             "type": "Label",
                             "caption": "If no 'Is Day' indicator is set, the day is determined by the brightness:"
                         },
@@ -215,6 +251,12 @@
                                         2
                                     ],
                                     "onChange": "IPS_RequestAction($id,'BrightnessID',$BrightnessID);"
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "BrightnessIDLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$BrightnessID"
                                 },
                                 {
                                     "type": "NumberSpinner",
@@ -235,6 +277,12 @@
                                         2
                                     ],
                                     "caption": "Brightness Threshold ID"
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "BrightnessThresholdIDLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$BrightnessThresholdID"
                                 }
                             ]
                         },
@@ -255,12 +303,24 @@
                                     "caption": "Start of the day ID"
                                 },
                                 {
+                                    "type": "OpenObjectButton",
+                                    "name": "DayStartIDLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$DayStartID"
+                                },
+                                {
                                     "type": "SelectVariable",
                                     "name": "DayEndID",
                                     "validVariableTypes": [
                                         3
                                     ],
                                     "caption": "End of the day ID"
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "DayEndIDLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$DayEndID"
                                 }
                             ]
                         }
@@ -304,6 +364,12 @@
                             "caption": "Activator ID"
                         },
                         {
+                            "type": "OpenObjectButton",
+                            "name": "ActivatorIDShadowingBySunPositionLink",
+                            "caption": "Variable anzeigen",
+                            "objectID": "$ActivatorIDShadowingBySunPosition"
+                        },
+                        {
                             "type": "Label",
                             "caption": "Define the sun position indicators"
                         },
@@ -316,12 +382,24 @@
                             "caption": "Azimuth ID"
                         },
                         {
+                            "type": "OpenObjectButton",
+                            "name": "AzimuthIDLink",
+                            "caption": "Variable anzeigen",
+                            "objectID": "$AzimuthID"
+                        },
+                        {
                             "type": "SelectVariable",
                             "name": "AltitudeID",
                             "validVariableTypes": [
                                 2
                             ],
                             "caption": "Altitude ID"
+                        },
+                        {
+                            "type": "OpenObjectButton",
+                            "name": "AltitudeIDLink",
+                            "caption": "Variable anzeigen",
+                            "objectID": "$AltitudeID"
                         },
                         {
                             "type": "Label",
@@ -391,6 +469,12 @@
                                     "onChange": "IPS_RequestAction($id,'BrightnessIDShadowingBySunPosition',$BrightnessIDShadowingBySunPosition);"
                                 },
                                 {
+                                    "type": "OpenObjectButton",
+                                    "name": "BrightnessIDShadowingBySunPositionLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$BrightnessIDShadowingBySunPosition"
+                                },
+                                {
                                     "type": "NumberSpinner",
                                     "name": "BrightnessAvgMinutesShadowingBySunPosition",
                                     "caption": "Average of the last minutes",
@@ -405,6 +489,12 @@
                                         2
                                     ],
                                     "caption": "Brightness Threshold ID"
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "BrightnessThresholdIDShadowingBySunPositionLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$BrightnessThresholdIDShadowingBySunPosition"
                                 }
                             ]
                         },
@@ -420,6 +510,12 @@
                                 2
                             ],
                             "caption": "Temperature ID"
+                        },
+                        {
+                            "type": "OpenObjectButton",
+                            "name": "TemperatureIDShadowingBySunPositionLink",
+                            "caption": "Variable anzeigen",
+                            "objectID": "$TemperatureIDShadowingBySunPosition"
                         },
                         {
                             "type": "Label",
@@ -608,6 +704,12 @@
                             "caption": "Activator ID"
                         },
                         {
+                            "type": "OpenObjectButton",
+                            "name": "ActivatorIDShadowingBrightnessLink",
+                            "caption": "Variable anzeigen",
+                            "objectID": "$ActivatorIDShadowingBrightness"
+                        },
+                        {
                             "type": "Label",
                             "caption": "Define the brightness indicator"
                         },
@@ -623,6 +725,12 @@
                                     ],
                                     "caption": "Brightness ID",
                                     "onChange": "IPS_RequestAction($id,'BrightnessIDShadowingBrightness',$BrightnessIDShadowingBrightness);"
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "BrightnessIDShadowingBrightnessLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$BrightnessIDShadowingBrightness"
                                 },
                                 {
                                     "type": "NumberSpinner",
@@ -650,6 +758,12 @@
                                     "caption": "Threshold less brightness ID"
                                 },
                                 {
+                                    "type": "OpenObjectButton",
+                                    "name": "ThresholdIDLessBrightnessLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$ThresholdIDLessBrightness"
+                                },
+                                {
                                     "type": "NumberSpinner",
                                     "name": "BlindLevelLessBrightnessShadowingBrightness",
                                     "caption": "Blind Level at less brightness",
@@ -674,6 +788,12 @@
                                         2
                                     ],
                                     "caption": "Threshold high brightness ID"
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "ThresholdIDHighBrightnessLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$ThresholdIDHighBrightness"
                                 },
                                 {
                                     "type": "NumberSpinner",
@@ -719,6 +839,12 @@
                                     "caption": "Contact 1 ID"
                                 },
                                 {
+                                    "type": "OpenObjectButton",
+                                    "name": "ContactClose1IDLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$ContactClose1ID"
+                                },
+                                {
                                     "type": "NumberSpinner",
                                     "name": "ContactCloseLevel1",
                                     "caption": "Maximum height when the contact is open",
@@ -744,6 +870,12 @@
                                         2
                                     ],
                                     "caption": "Contact 2 ID"
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "ContactClose2IDLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$ContactClose2ID"
                                 },
                                 {
                                     "type": "NumberSpinner",
@@ -781,6 +913,12 @@
                                         2
                                     ],
                                     "caption": "Kontakt 1 ID"
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "ContactOpen1IDLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$ContactOpen1ID"
                                 },
                                 {
                                     "type": "CheckBox",
@@ -825,6 +963,12 @@
                                         2
                                     ],
                                     "caption": "Kontakt 2 ID"
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "ContactOpen2IDLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$ContactOpen2ID"
                                 },
                                 {
                                     "type": "CheckBox",
@@ -876,8 +1020,14 @@
                             "name": "PriorityModeMorning",
                             "caption": "Vorrang morgens (Rollladen fährt auf)",
                             "options": [
-                                { "caption": "Wochenplan (Uhrzeit entscheidet, IsDay ignoriert)", "value": 0 },
-                                { "caption": "IsDay / Helligkeit (Sensor entscheidet, Wochenplan ignoriert)", "value": 1 }
+                                {
+                                    "caption": "Wochenplan (Uhrzeit entscheidet, IsDay ignoriert)",
+                                    "value": 0
+                                },
+                                {
+                                    "caption": "IsDay / Helligkeit (Sensor entscheidet, Wochenplan ignoriert)",
+                                    "value": 1
+                                }
                             ]
                         },
                         {
@@ -885,8 +1035,14 @@
                             "name": "PriorityModeEvening",
                             "caption": "Vorrang abends (Rollladen fährt zu)",
                             "options": [
-                                { "caption": "Wochenplan (Uhrzeit entscheidet, IsDay ignoriert)", "value": 0 },
-                                { "caption": "IsDay / Helligkeit (Sensor entscheidet, Wochenplan ignoriert)", "value": 1 }
+                                {
+                                    "caption": "Wochenplan (Uhrzeit entscheidet, IsDay ignoriert)",
+                                    "value": 0
+                                },
+                                {
+                                    "caption": "IsDay / Helligkeit (Sensor entscheidet, Wochenplan ignoriert)",
+                                    "value": 1
+                                }
                             ]
                         }
                     ]
@@ -909,6 +1065,12 @@
                                     "validVariableTypes": [
                                         0
                                     ]
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "Contact1LightConditionVarLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$Contact1LightConditionVar"
                                 }
                             ]
                         },
@@ -932,6 +1094,12 @@
                                     ],
                                     "visible": false,
                                     "onChange": "IPS_RequestAction($id, 'Contact1LightClosedVar', $Contact1LightClosedVar);"
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "Contact1LightClosedVarLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$Contact1LightClosedVar"
                                 },
                                 {
                                     "type": "Select",
@@ -1013,6 +1181,12 @@
                                     "onChange": "IPS_RequestAction($id, 'Contact1LightTiltVar', $Contact1LightTiltVar);"
                                 },
                                 {
+                                    "type": "OpenObjectButton",
+                                    "name": "Contact1LightTiltVarLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$Contact1LightTiltVar"
+                                },
+                                {
                                     "type": "Select",
                                     "name": "Contact1LightTiltType",
                                     "caption": "Typ",
@@ -1092,6 +1266,12 @@
                                     "onChange": "IPS_RequestAction($id, 'Contact1LightOpenVar', $Contact1LightOpenVar);"
                                 },
                                 {
+                                    "type": "OpenObjectButton",
+                                    "name": "Contact1LightOpenVarLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$Contact1LightOpenVar"
+                                },
+                                {
                                     "type": "Select",
                                     "name": "Contact1LightOpenType",
                                     "caption": "Typ",
@@ -1169,6 +1349,12 @@
                                     "validVariableTypes": [
                                         0
                                     ]
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "Contact2LightConditionVarLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$Contact2LightConditionVar"
                                 }
                             ]
                         },
@@ -1192,6 +1378,12 @@
                                     ],
                                     "visible": false,
                                     "onChange": "IPS_RequestAction($id, 'Contact2LightClosedVar', $Contact2LightClosedVar);"
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "Contact2LightClosedVarLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$Contact2LightClosedVar"
                                 },
                                 {
                                     "type": "Select",
@@ -1273,6 +1465,12 @@
                                     "onChange": "IPS_RequestAction($id, 'Contact2LightTiltVar', $Contact2LightTiltVar);"
                                 },
                                 {
+                                    "type": "OpenObjectButton",
+                                    "name": "Contact2LightTiltVarLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$Contact2LightTiltVar"
+                                },
+                                {
                                     "type": "Select",
                                     "name": "Contact2LightTiltType",
                                     "caption": "Typ",
@@ -1350,6 +1548,12 @@
                                     ],
                                     "visible": false,
                                     "onChange": "IPS_RequestAction($id, 'Contact2LightOpenVar', $Contact2LightOpenVar);"
+                                },
+                                {
+                                    "type": "OpenObjectButton",
+                                    "name": "Contact2LightOpenVarLink",
+                                    "caption": "Variable anzeigen",
+                                    "objectID": "$Contact2LightOpenVar"
                                 },
                                 {
                                     "type": "Select",
@@ -1430,6 +1634,12 @@
                         2
                     ],
                     "caption": "Emergency contact ID"
+                },
+                {
+                    "type": "OpenObjectButton",
+                    "name": "EmergencyContactIDLink",
+                    "caption": "Variable anzeigen",
+                    "objectID": "$EmergencyContactID"
                 }
             ]
         },
