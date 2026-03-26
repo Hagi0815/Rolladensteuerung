@@ -1028,34 +1028,37 @@ class Rolladensteuerung extends IPSModuleStrict
 
         $morningMode = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING);
         $eveningMode = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
+        $lastIsDay   = $this->ReadAttributeBoolean('AttrIsDay');
 
         // Morgen-Quelle: sagt ob es Zeit ist aufzufahren
-        // 0 = Wochenplan, 1 = IsDay
         if ($morningMode === 0) {
             $shouldOpen = ($isDayByTimeSchedule === true);
         } else {
-            // IsDay-Modus: kein Sensor → Fallback Wochenplan
             $shouldOpen = ($isDayByDayDetection !== null) ? ($isDayByDayDetection === true) : ($isDayByTimeSchedule === true);
         }
 
         // Abend-Quelle: sagt ob es Zeit ist zuzufahren
-        // 0 = Wochenplan, 1 = IsDay
+        // Wichtig: shouldClose ist nur relevant wenn der Rollladen gerade offen ist (lastIsDay=true)
+        // oder wenn shouldOpen bereits true ist (Quellen widersprechen sich → Schließen gewinnt)
+        // Wenn der Rollladen bereits zu ist (lastIsDay=false) und Abend-Quelle sagt Nacht
+        // → das ist kein neuer Schließbefehl, sondern der bestehende Zustand
         if ($eveningMode === 0) {
-            $shouldClose = ($isDayByTimeSchedule === false);
+            $eveningSignal = ($isDayByTimeSchedule === false);
         } else {
-            $shouldClose = ($isDayByDayDetection !== null) ? ($isDayByDayDetection === false) : ($isDayByTimeSchedule === false);
+            $eveningSignal = ($isDayByDayDetection !== null) ? ($isDayByDayDetection === false) : ($isDayByTimeSchedule === false);
         }
 
-        // isDay = auffahren erlaubt UND kein Schließbefehl aktiv
-        // Wenn shouldOpen und shouldClose gleichzeitig (unterschiedliche Quellen widersprüchlich):
-        // Schließen hat Vorrang (Sicherheit)
+        // shouldClose = Abend-Quelle sagt Nacht UND entweder Rollladen ist offen ODER Morgen-Quelle widerspricht
+        $shouldClose = $eveningSignal && ($lastIsDay || $shouldOpen);
+
+        // isDay bestimmen
         if ($shouldClose) {
             $isDay = false;
         } elseif ($shouldOpen) {
             $isDay = true;
         } else {
-            // Keiner sagt klar – gespeicherten Zustand beibehalten
-            $isDay = $this->ReadAttributeBoolean('AttrIsDay');
+            // Keine klare Aussage → gespeicherten Zustand beibehalten
+            $isDay = $lastIsDay;
         }
 
         $this->Logger_Dbg(__FUNCTION__, sprintf(
@@ -3727,29 +3730,30 @@ class Rolladensteuerung extends IPSModuleStrict
 
     private function getIsDayByTimeSchedule(): ?bool
     {
-        $weeklyTimeTableEventId = $this->ReadPropertyInteger(self::PROP_WEEKLYTIMETABLEEVENTID);
-        if (!$event = @IPS_GetEvent($weeklyTimeTableEventId)) {
+        $heute_auf = null;
+        $heute_ab  = null;
+
+        if (!$this->getUpAndDownPoints($heute_auf, $heute_ab)) {
             return null;
         }
 
-        // Direkt den aktuell aktiven Aktions-ID aus dem Wochenplan lesen
-        // ActionID 1 = Tag (auf), ActionID 2 = Nacht (zu)
-        // IPS_GetEvent liefert 'EventActive' = die aktuell gültige ActionID
-        $currentActionID = $event['EventActive'] ?? null;
+        $this->Logger_Dbg(__FUNCTION__, sprintf('heute_auf: %s, heute_ab: %s', $heute_auf ?? 'null', $heute_ab ?? 'null'));
 
-        if ($currentActionID === null) {
-            return null;
+        if ($heute_auf === null) {
+            return false; // Kein Auffahrzeitpunkt → immer Nacht
         }
 
-        $isDay = ($currentActionID === 1);
+        $now     = time();
+        $tsAuf   = strtotime($heute_auf);
+        $tsAb    = ($heute_ab !== null) ? strtotime($heute_ab) : null;
 
-        $this->Logger_Dbg(__FUNCTION__, sprintf(
-            'WP aktive Aktion: %d → isDay=%s',
-            $currentActionID,
-            $isDay ? 'true' : 'false'
-        ));
+        // Tag wenn: Auffahrzeit erreicht UND (keine Abendzeit oder Abendzeit noch nicht erreicht)
+        // Abendzeit streng: < statt <= damit genau zum Schaltpunkt die Nacht beginnt
+        if ($tsAb !== null) {
+            return ($now >= $tsAuf) && ($now < $tsAb);
+        }
 
-        return $isDay;
+        return $now >= $tsAuf;
     }
 
     //-------------------------------------
