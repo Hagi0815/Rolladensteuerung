@@ -264,6 +264,7 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterReferences();
         $this->RegisterMessages();
         $this->RegisterVariables();
+        $this->RegisterLinks();
 
         $this->SetInstanceStatusAndTimerEvent();
     }
@@ -1791,6 +1792,88 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterVariableString(self::VAR_IDENT_LAST_MESSAGE, $this->Translate('Last Message'));
 
         $this->EnableAction(self::VAR_IDENT_ACTIVATED);
+    }
+
+    private function RegisterLinks(): void
+    {
+        // Alle konfigurierten Variablen-Properties die verlinkt werden sollen
+        $linkProps = [
+            self::PROP_BLINDLEVELID,
+            self::PROP_SLATSLEVELID,
+            self::PROP_HOLIDAYINDICATORID,
+            self::PROP_WAKEUPTIMEID,
+            self::PROP_BEDTIMEID,
+            self::PROP_ISDAYINDICATORID,
+            self::PROP_BRIGHTNESSID,
+            self::PROP_BRIGHTNESSTHRESHOLDID,
+            self::PROP_DAYSTARTID,
+            self::PROP_DAYENDID,
+            self::PROP_ACTIVATORIDSHADOWINGBYSUNPOSITION,
+            self::PROP_AZIMUTHID,
+            self::PROP_ALTITUDEID,
+            self::PROP_BRIGHTNESSIDSHADOWINGBYSUNPOSITION,
+            self::PROP_BRIGHTNESSTHRESHOLDIDSHADOWINGBYSUNPOSITION,
+            self::PROP_TEMPERATUREIDSHADOWINGBYSUNPOSITION,
+            self::PROP_ACTIVATORIDSHADOWINGBRIGHTNESS,
+            self::PROP_BRIGHTNESSIDSHADOWINGBRIGHTNESS,
+            self::PROP_THRESHOLDIDLESSBRIGHTNESS,
+            self::PROP_THRESHOLDIDHIGHBRIGHTNESS,
+            self::PROP_CONTACTOPEN1ID,
+            self::PROP_CONTACTOPEN2ID,
+            self::PROP_CONTACTCLOSE1ID,
+            self::PROP_CONTACTCLOSE2ID,
+            self::PROP_EMERGENCYCONTACTID,
+        ];
+
+        // Lichtsteuerungs-Variablen
+        foreach ([1, 2] as $i) {
+            foreach (['Closed', 'Tilt', 'Open'] as $state) {
+                $linkProps[] = "Contact{$i}Light{$state}Var";
+            }
+            $linkProps[] = "Contact{$i}LightConditionVar";
+        }
+
+        // Ziel-IDs aller konfigurierten Variablen sammeln
+        $configuredIDs = [];
+        foreach ($linkProps as $prop) {
+            $id = $this->ReadPropertyInteger($prop);
+            if (IPS_VariableExists($id)) {
+                $configuredIDs[$id] = IPS_GetObject($id)['ObjectName'];
+            }
+        }
+
+        // Bestehende Links unter dieser Instanz ermitteln
+        $existingLinks = [];
+        foreach (IPS_GetChildrenIDs($this->InstanceID) as $childID) {
+            if (IPS_GetObject($childID)['ObjectType'] === OBJECTTYPE_LINK) {
+                $existingLinks[$childID] = IPS_GetLink($childID)['TargetID'];
+            }
+        }
+
+        // Links anlegen oder aktualisieren
+        foreach ($configuredIDs as $targetID => $name) {
+            // Prüfen ob Link für diese Ziel-ID bereits existiert
+            $existingLinkID = array_search($targetID, $existingLinks);
+            if ($existingLinkID !== false) {
+                // Link existiert bereits → Name aktualisieren falls nötig
+                if (IPS_GetObject($existingLinkID)['ObjectName'] !== $name) {
+                    IPS_SetName($existingLinkID, $name);
+                }
+                unset($existingLinks[$existingLinkID]);
+            } else {
+                // Neuen Link anlegen
+                $linkID = IPS_CreateLink();
+                IPS_SetParent($linkID, $this->InstanceID);
+                IPS_SetLinkTargetID($linkID, $targetID);
+                IPS_SetName($linkID, $name);
+                IPS_SetIcon($linkID, '');
+            }
+        }
+
+        // Veraltete Links entfernen (Ziel-Variable nicht mehr konfiguriert)
+        foreach ($existingLinks as $oldLinkID => $oldTargetID) {
+            IPS_DeleteLink($oldLinkID);
+        }
     }
 
     private function SetInstanceStatusAndTimerEvent(): void
