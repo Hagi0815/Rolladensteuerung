@@ -1,5 +1,5 @@
 {
-  "id": "{62E411BE-C499-43D5-B5FF-A9EBF42E165A}",
+  "id": "{C588F944-0032-411C-9848-3638D019CDB8}",
   "name": "Rolladensteuerung Gruppe",
   "type": 3,
   "vendor": "Hagi",
