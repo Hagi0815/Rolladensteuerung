@@ -1842,8 +1842,8 @@ class Rolladensteuerung extends IPSModuleStrict
         if (!IPS_VariableProfileExists($profileName)) {
             IPS_CreateVariableProfile($profileName, VARIABLETYPE_INTEGER);
         }
-        IPS_SetVariableProfileAssociation($profileName, 0, 'Wochenplan',        'Calendar', -1);
-        IPS_SetVariableProfileAssociation($profileName, 1, 'IsDay / Helligkeit', 'Sun',      -1);
+        IPS_SetVariableProfileAssociation($profileName, 0, 'Wochenplan',         '', -1);
+        IPS_SetVariableProfileAssociation($profileName, 1, 'IsDay / Helligkeit',  '', -1);
 
         $this->RegisterVariableInteger(self::VAR_IDENT_MORNING_MODE, $this->Translate('Vorrang morgens'), $profileName);
         $this->RegisterVariableInteger(self::VAR_IDENT_EVENING_MODE, $this->Translate('Vorrang abends'),  $profileName);
@@ -1853,14 +1853,17 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->EnableAction(self::VAR_IDENT_EVENING_MODE);
 
         // Aktionsskript für die Modus-Variablen anlegen
-        // Das Skript setzt per RequestAction den neuen Wert im Modul
-        foreach ([self::VAR_IDENT_MORNING_MODE, self::VAR_IDENT_EVENING_MODE] as $ident) {
-            $varID      = $this->GetIDForIdent($ident);
-            $scriptName = ($ident === self::VAR_IDENT_MORNING_MODE)
-                ? 'Vorrang morgens setzen'
-                : 'Vorrang abends setzen';
+        foreach ([
+            self::VAR_IDENT_MORNING_MODE => 'Vorrang morgens setzen',
+            self::VAR_IDENT_EVENING_MODE => 'Vorrang abends setzen',
+        ] as $ident => $scriptName) {
 
-            // Prüfen ob Skript bereits existiert
+            $varID = @$this->GetIDForIdent($ident);
+            if (!$varID) {
+                continue;
+            }
+
+            // Vorhandenes Skript suchen
             $scriptID = 0;
             foreach (IPS_GetChildrenIDs($this->InstanceID) as $childID) {
                 if (IPS_GetObject($childID)['ObjectType'] === OBJECTTYPE_SCRIPT
@@ -1870,8 +1873,7 @@ class Rolladensteuerung extends IPSModuleStrict
                 }
             }
 
-            $instanceID = $this->InstanceID;
-            $content    = "<?php\nRequestAction({$varID}, \$_IPS['VALUE']);\n";
+            $content = "<?php\nRequestAction({$varID}, \$_IPS['VALUE']);\n";
 
             if ($scriptID === 0) {
                 $scriptID = IPS_CreateScript(SCRIPTTYPE_PHP);
@@ -1881,7 +1883,7 @@ class Rolladensteuerung extends IPSModuleStrict
             IPS_SetScriptContent($scriptID, $content);
 
             // Skript als Aktion der Variable setzen
-            IPS_SetVariableAction($varID, $scriptID);
+            IPS_SetVariableCustomAction($varID, $scriptID);
         }
 
         // Wert aus Property synchronisieren (beim Speichern der Konfiguration)
