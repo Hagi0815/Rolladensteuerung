@@ -606,7 +606,7 @@ class Rolladensteuerung extends IPSModuleStrict
                     }
                     $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode($lastStates, JSON_THROW_ON_ERROR));
                     if ($this->GetValue(self::VAR_IDENT_ACTIVATED) && IPS_GetKernelRunlevel() === KR_READY) {
-                        $this->applyLightControl();
+                        $this->applyLightControl(false, $this->ReadAttributeBoolean('AttrIsDay'));
                     }
                     break;
                 }
@@ -686,14 +686,26 @@ class Rolladensteuerung extends IPSModuleStrict
 
             // Öffnen-Kontakt: Zustand (geschlossen/gekippt/geöffnet) und Wert ausgeben
             if (is_array($info) && $info['type'] === 'open') {
-                $i         = $info['index'];
-                $useInt    = $this->ReadPropertyBoolean(constant("self::PROP_CONTACTOPEN{$i}_USE_INTEGER"));
-                $rawVal    = IPS_VariableExists($senderID) ? GetValue($senderID) : null;
-                $zustand   = '';
+                $i       = $info['index'];
+                $useIntMap = [
+                    1 => self::PROP_CONTACTOPEN1_USE_INTEGER,
+                    2 => self::PROP_CONTACTOPEN2_USE_INTEGER,
+                ];
+                $tiltMap = [
+                    1 => self::PROP_CONTACTOPEN1_TILT_VALUE,
+                    2 => self::PROP_CONTACTOPEN2_TILT_VALUE,
+                ];
+                $openMap = [
+                    1 => self::PROP_CONTACTOPEN1_OPEN_VALUE,
+                    2 => self::PROP_CONTACTOPEN2_OPEN_VALUE,
+                ];
+                $useInt  = $this->ReadPropertyBoolean($useIntMap[$i]);
+                $rawVal  = IPS_VariableExists($senderID) ? GetValue($senderID) : null;
+                $zustand = '';
 
                 if ($useInt && $rawVal !== null) {
-                    $tiltVal = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}_TILT_VALUE"));
-                    $openVal = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}_OPEN_VALUE"));
+                    $tiltVal = $this->ReadPropertyInteger($tiltMap[$i]);
+                    $openVal = $this->ReadPropertyInteger($openMap[$i]);
                     if ((int)$rawVal >= $openVal) {
                         $zustand = 'geöffnet';
                     } elseif ((int)$rawVal >= $tiltVal) {
@@ -1086,8 +1098,11 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         // --- 7. Lichtsteuerung ausführen (nach Rollladenbewegung) ---
-        // Bei Tag/Nacht-Wechsel: Lichtsteuerung immer ausführen auch wenn Kontaktzustand unverändert
-        $this->applyLightControl($dayStateChanged);
+        // Bei Tag/Nacht-Wechsel: lastStates zurücksetzen damit Lichtsteuerung immer neu ausgeführt wird
+        if ($dayStateChanged) {
+            $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
+        }
+        $this->applyLightControl($dayStateChanged, $isDay);
 
         // --- 8. Status-Meldung aktualisieren ---
         $prevMsg     = $this->GetValue(self::VAR_IDENT_LAST_MESSAGE);
@@ -1461,23 +1476,44 @@ class Rolladensteuerung extends IPSModuleStrict
      * Jeder Kontakt (1+2) kann für drei Zustände (geschlossen/gekippt/geöffnet)
      * eine Variable (boolean, string, float) schalten.
      */
-    private function applyLightControl(bool $forceExecute = false): void
+    private function applyLightControl(bool $forceExecute = false, bool $isDay = false): void
     {
+        // Lichtsteuerung nur aktiv während der Nachtphase (isDay=false)
+        if ($isDay) {
+            $this->Logger_Dbg(__FUNCTION__, 'Lichtsteuerung inaktiv: Tagphase (isDay=true)');
+            return;
+        }
+
         $lastStates = json_decode($this->ReadAttributeString(self::ATTR_LIGHT_STATE), true, 512, JSON_THROW_ON_ERROR);
 
+        // Property-Namen direkt als Array – constant() funktioniert nicht mit private Klassenkonstanten
+        $contactProps = [
+            1 => [
+                'id'        => self::PROP_CONTACTOPEN1ID,
+                'useInt'    => self::PROP_CONTACTOPEN1_USE_INTEGER,
+                'tiltVal'   => self::PROP_CONTACTOPEN1_TILT_VALUE,
+                'openVal'   => self::PROP_CONTACTOPEN1_OPEN_VALUE,
+            ],
+            2 => [
+                'id'        => self::PROP_CONTACTOPEN2ID,
+                'useInt'    => self::PROP_CONTACTOPEN2_USE_INTEGER,
+                'tiltVal'   => self::PROP_CONTACTOPEN2_TILT_VALUE,
+                'openVal'   => self::PROP_CONTACTOPEN2_OPEN_VALUE,
+            ],
+        ];
+
         foreach ([1, 2] as $i) {
-            // Kontakt-ID direkt lesen
-            $contactId = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}ID"));
+            $props     = $contactProps[$i];
+            $contactId = $this->ReadPropertyInteger($props['id']);
             if (!IPS_VariableExists($contactId)) {
                 continue;
             }
 
-            // Zustand des Kontakts ermitteln (0=geschlossen, 1=gekippt, 2=geöffnet)
-            $useIntProp = constant("self::PROP_CONTACTOPEN{$i}_USE_INTEGER");
-            if ($this->ReadPropertyBoolean($useIntProp)) {
+            // Zustand ermitteln (0=geschlossen, 1=gekippt, 2=geöffnet)
+            if ($this->ReadPropertyBoolean($props['useInt'])) {
                 $rawValue  = (int)GetValue($contactId);
-                $tiltValue = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}_TILT_VALUE"));
-                $openValue = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}_OPEN_VALUE"));
+                $tiltValue = $this->ReadPropertyInteger($props['tiltVal']);
+                $openValue = $this->ReadPropertyInteger($props['openVal']);
                 if ($rawValue >= $openValue) {
                     $state = 2;
                 } elseif ($rawValue >= $tiltValue) {
@@ -1489,10 +1525,25 @@ class Rolladensteuerung extends IPSModuleStrict
                 $state = (bool)GetValue($contactId) ? 2 : 0;
             }
 
-            // Bei forceExecute (Tag/Nacht-Wechsel): immer ausführen, sonst nur bei Zustandsänderung
+            // Ausführen wenn:
+            // - Zustand hat sich geändert ODER noch nie ausgeführt (lastState=-1)
+            // - Bei forceExecute (Tag/Nacht-Wechsel): nur wenn Griff aktiv (state > 0)
             $lastState = $lastStates[$i] ?? -1;
-            if (!$forceExecute && $state === $lastState) {
-                $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Zustand unverändert (%d), kein Lichtschaltbefehl', $i, $state));
+            $this->Logger_Dbg(__FUNCTION__, sprintf(
+                'Kontakt %d: state=%d, lastState=%d, forceExecute=%s',
+                $i, $state, $lastState, $forceExecute ? 'ja' : 'nein'
+            ));
+
+            $stateChanged = ($state !== $lastState || $lastState === -1);
+
+            if ($forceExecute) {
+                // Bei Nacht-Wechsel: nur ausführen wenn Griff gekippt oder geöffnet
+                if ($state === 0) {
+                    $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: forceExecute aber Griff geschlossen – übersprungen', $i));
+                    continue;
+                }
+            } elseif (!$stateChanged) {
+                $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Zustand unverändert (%d) – übersprungen', $i, $state));
                 continue;
             }
 
@@ -1514,11 +1565,22 @@ class Rolladensteuerung extends IPSModuleStrict
             };
 
             $enabledProp = "Contact{$i}Light{$stateKey}Enabled";
-            if (!$this->ReadPropertyBoolean($enabledProp)) {
+            $isEnabled   = $this->ReadPropertyBoolean($enabledProp);
+            $varId       = $this->ReadPropertyInteger("Contact{$i}Light{$stateKey}Var");
+
+            $this->Logger_Dbg(__FUNCTION__, sprintf(
+                'Kontakt %d Zustand=%s: Enabled=%s, VarID=%d, VarExists=%s, forceExecute=%s',
+                $i, $stateKey,
+                $isEnabled ? 'ja' : 'nein',
+                $varId,
+                IPS_VariableExists($varId) ? 'ja' : 'nein',
+                $forceExecute ? 'ja' : 'nein'
+            ));
+
+            if (!$isEnabled) {
                 continue;
             }
 
-            $varId = $this->ReadPropertyInteger("Contact{$i}Light{$stateKey}Var");
             if (!IPS_VariableExists($varId)) {
                 continue;
             }
@@ -2609,29 +2671,66 @@ class Rolladensteuerung extends IPSModuleStrict
 
     private function getDefinedContacts(string $contactIdKey, string $blindLevelKey, string $slatsLevelKey): array
     {
+        // Property-Maps für ContactOpen Integer-Modus (constant() funktioniert nicht mit private Konstanten)
+        $contactOpenIntProps = [
+            1 => [
+                'useInt'    => self::PROP_CONTACTOPEN1_USE_INTEGER,
+                'tiltVal'   => self::PROP_CONTACTOPEN1_TILT_VALUE,
+                'openVal'   => self::PROP_CONTACTOPEN1_OPEN_VALUE,
+                'tiltLevel' => self::PROP_CONTACTOPEN1_TILT_BLIND_LEVEL,
+            ],
+            2 => [
+                'useInt'    => self::PROP_CONTACTOPEN2_USE_INTEGER,
+                'tiltVal'   => self::PROP_CONTACTOPEN2_TILT_VALUE,
+                'openVal'   => self::PROP_CONTACTOPEN2_OPEN_VALUE,
+                'tiltLevel' => self::PROP_CONTACTOPEN2_TILT_BLIND_LEVEL,
+            ],
+        ];
+
+        // ID- und Level-Properties als direkte Maps
+        $idProps = [
+            'PROP_CONTACTOPEN'  => [1 => self::PROP_CONTACTOPEN1ID,  2 => self::PROP_CONTACTOPEN2ID],
+            'PROP_CONTACTCLOSE' => [1 => self::PROP_CONTACTCLOSE1ID, 2 => self::PROP_CONTACTCLOSE2ID],
+        ];
+        $levelProps = [
+            'PROP_CONTACTOPENLEVEL'       => [1 => self::PROP_CONTACTOPENLEVEL1,      2 => self::PROP_CONTACTOPENLEVEL2],
+            'PROP_CONTACTCLOSELEVEL'      => [1 => self::PROP_CONTACTCLOSELEVEL1,     2 => self::PROP_CONTACTCLOSELEVEL2],
+            'PROP_CONTACTOPENSLATSLEVEL'  => [1 => null,                              2 => null],
+            'PROP_CONTACTCLOSESLATSLEVEL' => [1 => self::PROP_CONTACTCLOSESLATSLEVEL1, 2 => self::PROP_CONTACTCLOSESLATSLEVEL2],
+        ];
+
         $contacts = [];
-        for ($i = 1; $i <= 2; $i++) { // Erweitern um weitere Kontakte, falls nötig
-            $id = $this->ReadPropertyInteger(constant("self::{$contactIdKey}{$i}ID"));
-            if (IPS_VariableExists($id)) {
-                $contact = [
-                    'id'         => $id,
-                    'blindlevel' => $this->ReadPropertyFloat(constant("self::{$blindLevelKey}{$i}")),
-                    'useInteger' => false,
-                ];
-
-                // Integer-Modus fuer ContactOpen-Kontakte: Kipp-/Oeffnen-Zustand
-                if ($contactIdKey === 'PROP_CONTACTOPEN') {
-                    $useIntProp = constant("self::PROP_CONTACTOPEN{$i}_USE_INTEGER");
-                    if ($this->ReadPropertyBoolean($useIntProp)) {
-                        $contact['useInteger']      = true;
-                        $contact['tiltValue']       = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}_TILT_VALUE"));
-                        $contact['openValue']       = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}_OPEN_VALUE"));
-                        $contact['tiltBlindLevel']  = $this->ReadPropertyFloat(constant("self::PROP_CONTACTOPEN{$i}_TILT_BLIND_LEVEL"));
-                    }
-                }
-
-                $contacts[constant("self::{$contactIdKey}{$i}ID")] = $contact;
+        for ($i = 1; $i <= 2; $i++) {
+            $idProp = $idProps[$contactIdKey][$i] ?? null;
+            if ($idProp === null) {
+                continue;
             }
+            $id = $this->ReadPropertyInteger($idProp);
+            if (!IPS_VariableExists($id)) {
+                continue;
+            }
+
+            $blindLevelProp = $levelProps[$blindLevelKey][$i] ?? null;
+            $slatsLevelProp = $levelProps[$slatsLevelKey][$i] ?? null;
+
+            $contact = [
+                'id'         => $id,
+                'blindlevel' => $blindLevelProp ? $this->ReadPropertyFloat($blindLevelProp) : 0.0,
+                'useInteger' => false,
+            ];
+
+            // Integer-Modus für ContactOpen-Kontakte
+            if ($contactIdKey === 'PROP_CONTACTOPEN' && isset($contactOpenIntProps[$i])) {
+                $p = $contactOpenIntProps[$i];
+                if ($this->ReadPropertyBoolean($p['useInt'])) {
+                    $contact['useInteger']     = true;
+                    $contact['tiltValue']      = $this->ReadPropertyInteger($p['tiltVal']);
+                    $contact['openValue']      = $this->ReadPropertyInteger($p['openVal']);
+                    $contact['tiltBlindLevel'] = $this->ReadPropertyFloat($p['tiltLevel']);
+                }
+            }
+
+            $contacts[$idProp] = $contact;
         }
         return $contacts;
     }
