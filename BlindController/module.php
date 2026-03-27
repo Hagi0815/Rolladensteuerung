@@ -663,32 +663,78 @@ class Rolladensteuerung extends IPSModuleStrict
      */
     private function getTriggerName(int $senderID): string
     {
-        // Bekannte Properties mit lesbaren Namen
         $knownSources = [
             self::PROP_ISDAYINDICATORID       => 'IsDay',
             self::PROP_BRIGHTNESSID           => 'Helligkeit',
             self::PROP_BRIGHTNESSTHRESHOLDID  => 'Helligkeitsschwelle',
             self::PROP_HOLIDAYINDICATORID     => 'Feiertag',
-            self::PROP_CONTACTOPEN1ID         => 'Kontakt 1 (Öffnen)',
-            self::PROP_CONTACTOPEN2ID         => 'Kontakt 2 (Öffnen)',
-            self::PROP_CONTACTCLOSE1ID        => 'Kontakt 1 (Schließen)',
-            self::PROP_CONTACTCLOSE2ID        => 'Kontakt 2 (Schließen)',
+            self::PROP_CONTACTOPEN1ID         => ['label' => 'Kontakt 1', 'type' => 'open', 'index' => 1],
+            self::PROP_CONTACTOPEN2ID         => ['label' => 'Kontakt 2', 'type' => 'open', 'index' => 2],
+            self::PROP_CONTACTCLOSE1ID        => ['label' => 'Kontakt 1 (Schließen)', 'type' => 'close'],
+            self::PROP_CONTACTCLOSE2ID        => ['label' => 'Kontakt 2 (Schließen)', 'type' => 'close'],
             self::PROP_EMERGENCYCONTACTID     => 'Notfallkontakt',
             self::PROP_ACTIVATORIDSHADOWINGBRIGHTNESS    => 'Beschattung Helligkeit',
             self::PROP_ACTIVATORIDSHADOWINGBYSUNPOSITION => 'Beschattung Sonnenstand',
         ];
 
-        foreach ($knownSources as $prop => $label) {
-            if ($this->ReadPropertyInteger($prop) === $senderID) {
-                // Objektnamen der Variable anhängen falls verfügbar
-                if (IPS_ObjectExists($senderID)) {
-                    return $label . ' (' . IPS_GetObject($senderID)['ObjectName'] . ')';
-                }
-                return $label;
+        foreach ($knownSources as $prop => $info) {
+            if ($this->ReadPropertyInteger($prop) !== $senderID) {
+                continue;
             }
+
+            $objName = IPS_ObjectExists($senderID) ? IPS_GetObject($senderID)['ObjectName'] : '';
+
+            // Öffnen-Kontakt: Zustand (geschlossen/gekippt/geöffnet) und Wert ausgeben
+            if (is_array($info) && $info['type'] === 'open') {
+                $i         = $info['index'];
+                $useInt    = $this->ReadPropertyBoolean(constant("self::PROP_CONTACTOPEN{$i}_USE_INTEGER"));
+                $rawVal    = IPS_VariableExists($senderID) ? GetValue($senderID) : null;
+                $zustand   = '';
+
+                if ($useInt && $rawVal !== null) {
+                    $tiltVal = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}_TILT_VALUE"));
+                    $openVal = $this->ReadPropertyInteger(constant("self::PROP_CONTACTOPEN{$i}_OPEN_VALUE"));
+                    if ((int)$rawVal >= $openVal) {
+                        $zustand = 'geöffnet';
+                    } elseif ((int)$rawVal >= $tiltVal) {
+                        $zustand = 'gekippt';
+                    } else {
+                        $zustand = 'geschlossen';
+                    }
+                    $valStr = $rawVal . ' → ' . $zustand;
+                } elseif ($rawVal !== null) {
+                    $zustand = $rawVal ? 'geöffnet' : 'geschlossen';
+                    $valStr  = $zustand;
+                } else {
+                    $valStr = '–';
+                }
+
+                $label = $info['label'] . ($objName ? ' (' . $objName . ')' : '');
+                return $label . ': ' . $valStr;
+            }
+
+            // Schließen-Kontakt
+            if (is_array($info)) {
+                $rawVal  = IPS_VariableExists($senderID) ? GetValue($senderID) : null;
+                $valStr  = $rawVal !== null ? ($rawVal ? 'aktiv' : 'inaktiv') : '–';
+                $label   = $info['label'] . ($objName ? ' (' . $objName . ')' : '');
+                return $label . ': ' . $valStr;
+            }
+
+            // Einfache Quellen: aktuellen Wert ergänzen
+            $rawVal = IPS_VariableExists($senderID) ? GetValue($senderID) : null;
+            $valStr = '';
+            if ($rawVal !== null) {
+                if (is_bool($rawVal)) {
+                    $valStr = ': ' . ($rawVal ? 'ein' : 'aus');
+                } elseif (is_float($rawVal) || is_int($rawVal)) {
+                    $valStr = ': ' . $rawVal;
+                }
+            }
+            $label = $info . ($objName ? ' (' . $objName . ')' : '');
+            return $label . $valStr;
         }
 
-        // Fallback: Objektname aus IPS
         if (IPS_ObjectExists($senderID)) {
             return IPS_GetObject($senderID)['ObjectName'];
         }
@@ -733,7 +779,18 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         $percentOpen = 100 - $this->calculateNormalizedLevel($blindLevelAct, $this->profileBlindLevel);
-        $msg = date('H:i:s') . ' | Manuelle Bedienung | Öffnung: ' . $percentOpen . '%';
+
+        if ($percentOpen === 100) {
+            $direction = 'vollständig geöffnet';
+        } elseif ($percentOpen === 0) {
+            $direction = 'vollständig geschlossen';
+        } elseif ($percentOpen > 50) {
+            $direction = sprintf('geöffnet auf %d%%', $percentOpen);
+        } else {
+            $direction = sprintf('geschlossen auf %d%% offen', $percentOpen);
+        }
+
+        $msg = date('H:i:s') . ' | Manuelle Bedienung – ' . $direction;
         $this->SetValue(self::VAR_IDENT_LAST_MESSAGE, $msg);
 
         $this->Logger_Dbg(__FUNCTION__, 'Manuelle Bewegung erkannt: ' . $percentOpen . '% offen');
@@ -1031,21 +1088,27 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->applyLightControl();
 
         // --- 8. Status-Meldung aktualisieren ---
-        // Auslöser aus vorheriger Meldung extrahieren (wurde bereits beim Triggern gesetzt)
         $prevMsg     = $this->GetValue(self::VAR_IDENT_LAST_MESSAGE);
         $triggerPart = '';
         if (preg_match('/Ausgelöst durch: (.+?) \|/', $prevMsg, $m)) {
             $triggerPart = ' | Auslöser: ' . $m[1];
         }
 
-        // Anzeige: 0% = geschlossen, 100% = geöffnet (invertiert zu percentClose)
-        $statusMsg = date('H:i:s') . ' | ';
-        $statusMsg .= $Hinweis !== '' ? $Hinweis : ($bNoMove ? 'Keine Bewegung (Sperre)' : 'Keine Änderung');
-        $statusMsg .= sprintf(' | Öffnung: %d%%', 100 - $blindLevel);
-        if ($slatsLevel !== -1) {
-            $statusMsg .= sprintf(' / %d%%', 100 - $slatsLevel);
+        $openPct = 100 - $blindLevel;
+        if ($openPct === 100) {
+            $posText = 'vollständig offen';
+        } elseif ($openPct === 0) {
+            $posText = 'vollständig geschlossen';
+        } else {
+            $posText = sprintf('%d%% offen', $openPct);
         }
-        $statusMsg .= $triggerPart;
+        if ($slatsLevel !== -1) {
+            $posText .= sprintf(', Lamellen %d%%', 100 - $slatsLevel);
+        }
+
+        $reasonText = $Hinweis !== '' ? $Hinweis : ($bNoMove ? 'Keine Bewegung (Sperre)' : 'Keine Änderung');
+
+        $statusMsg = date('H:i:s') . ' | ' . $reasonText . ' | ' . $posText . $triggerPart;
         $this->SetValue(self::VAR_IDENT_LAST_MESSAGE, $statusMsg);
 
         //im Notfall wird die Automatik NICHT automatisch deaktiviert – nur Benutzer/Boolean darf deaktivieren
@@ -1127,13 +1190,13 @@ class Rolladensteuerung extends IPSModuleStrict
 
         $positionsNew = $positionsAct;
 
-        // Basis-Hinweis und Attribut-Update (für Tag und Nacht gleich)
+        // Basis-Hinweis
         if ($dayState['isDayByTimeSchedule'] !== $this->ReadAttributeBoolean(self::ATTR_LAST_ISDAYBYTIMESCHEDULE)) {
-            $hint = 'WP';
+            $hint = 'Wochenplan-Schaltpunkt';
         } elseif ($dayState['isDay']) {
-            $hint = 'Tag';
+            $hint = $dayState['priorityMode'] === 1 ? 'Tag (IsDay)' : 'Tag (Wochenplan)';
         } else {
-            $hint = 'Nacht';
+            $hint = $dayState['priorityMode'] === 1 ? 'Nacht (IsDay)' : 'Nacht (Wochenplan)';
         }
 
         if ($this->ReadAttributeInteger(self::ATTR_DAYTIME_CHANGE_TIME) === 0) {
@@ -2730,9 +2793,17 @@ class Rolladensteuerung extends IPSModuleStrict
             return null;
         }
 
+        // Hinweis mit Kontaktname und Zielposition
+        $stateText = ($maxState === 1) ? 'gekippt' : 'geöffnet';
+        $posText   = '';
+        if ($blindPositions !== null && isset($this->profileBlindLevel)) {
+            $pct     = $this->calculateNormalizedLevel($blindPositions['BlindLevel'], $this->profileBlindLevel);
+            $posText = sprintf(', Ziel: %d%% offen', 100 - $pct);
+        }
+
         return [
             'positions' => $blindPositions,
-            'hint'      => ($maxState === 1) ? 'Kontakt gekippt' : 'Kontakt geoeffnet'
+            'hint'      => 'Griff ' . $stateText . $posText,
         ];
     }
 
