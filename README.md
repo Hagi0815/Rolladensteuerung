@@ -80,20 +80,6 @@ Führt einen vollständigen Steuerungslauf durch. `$considerDeactivationTimes = 
 
 ---
 
-```php
-BLC_MoveBlind(int $InstanceID, int $percentBlindClose, int $percentSlatsClose, int $deactivationTimeAuto, string $hint): bool
-```
-Fährt den Rollladen direkt auf eine Position.
-
-| Parameter | Typ | Beschreibung |
-|---|---|---|
-| `$percentBlindClose` | int 0–100 | Schließungsgrad des Behangs (0 = offen, 100 = geschlossen) |
-| `$percentSlatsClose` | int 0–100 oder -1 | Lamellenstellung; -1 = keine Lamellensteuerung |
-| `$deactivationTimeAuto` | int | Sekunden seit letzter Automatikbewegung die mindestens vergangen sein müssen |
-| `$hint` | string | Hinweistext für die Statusvariable LAST_MESSAGE |
-
----
-
 ## 5. Konfiguration
 
 ### 5.1 Wochenplan

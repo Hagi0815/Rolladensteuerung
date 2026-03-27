@@ -286,10 +286,6 @@ class Rolladensteuerung extends IPSModuleStrict
                 $this->handleActivation($Value);
                 break;
 
-            case 'MoveBlindToShadowingPosition':
-                $this->MoveBlindToShadowingPosition((int)$Value);
-                break;
-
             case self::PROP_SLATSLEVELID:
             case self::PROP_HOLIDAYINDICATORID:
             case self::PROP_WAKEUPTIMEID:
@@ -3372,7 +3368,7 @@ class Rolladensteuerung extends IPSModuleStrict
      * @param string $hint Grund der Bewegung für das Logging.
      * @return bool True, wenn mindestens eine Bewegung erfolgreich eingeleitet wurde.
      */
-    public function MoveBlind(int $percentBlindClose, int $percentSlatsClose, int $deactivationTimeAuto, string $hint): bool
+    private function MoveBlind(int $percentBlindClose, int $percentSlatsClose, int $deactivationTimeAuto, string $hint): bool
     {
         if (IPS_GetInstance($this->InstanceID)['InstanceStatus'] !== IS_ACTIVE) {
             return false;
@@ -3414,47 +3410,6 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         return $moveBladeOk;
-    }
-
-    /**
-     * Fährt den Rollladen (und ggf. Lamellen) auf eine vordefinierte Beschattungsposition.
-     */
-    private function MoveBlindToShadowingPosition(int $percentShadowing): bool
-    {
-        if (IPS_GetInstance($this->InstanceID)['InstanceStatus'] !== IS_ACTIVE) {
-            return false;
-        }
-
-        $this->Logger_Dbg(__FUNCTION__, sprintf('percentClose: %s', $percentShadowing));
-
-        if (($percentShadowing < 0) || ($percentShadowing > 100)) {
-            return false;
-        }
-
-        // globale Instanzvariablen setzen
-        $this->profileBlindLevel = $this->GetPresentationInformation(self::PROP_BLINDLEVELID);
-
-        if ($this->profileBlindLevel === null) {
-            return false;
-        }
-
-        $positions = $this->calculatePositionsFromShadowingDegree($percentShadowing / 100);
-        $hint      = sprintf('%s%% Beschattung', $percentShadowing);
-
-        // Hauptbehang bewegen
-        $blindLevel = $this->calculateNormalizedLevel($positions['BlindLevel'], $this->profileBlindLevel);
-        $success    = $this->MoveToPosition(self::PROP_BLINDLEVELID, $blindLevel, 0, 0, $hint);
-
-        // Optionale Lamellen bewegen
-        if (IPS_VariableExists($this->ReadPropertyInteger(self::PROP_SLATSLEVELID))) {
-            $this->profileSlatsLevel = $this->GetPresentationInformation(self::PROP_SLATSLEVELID);
-            $slatsLevel              = $this->calculateNormalizedLevel($positions['SlatsLevel'], $this->profileSlatsLevel);
-            $moveSlatsOk             = $this->MoveToPosition(self::PROP_SLATSLEVELID, $slatsLevel, 0, 0, $hint);
-
-            return $success || $moveSlatsOk;
-        }
-
-        return $success;
     }
 
     private function MoveToPosition(string $propName, int $percentClose, int $tsAutomatic, int $deactivationTimeAuto, string $hint): bool
