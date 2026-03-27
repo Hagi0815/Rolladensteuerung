@@ -1852,40 +1852,6 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->EnableAction(self::VAR_IDENT_MORNING_MODE);
         $this->EnableAction(self::VAR_IDENT_EVENING_MODE);
 
-        // Aktionsskript für die Modus-Variablen anlegen
-        foreach ([
-            self::VAR_IDENT_MORNING_MODE => 'Vorrang morgens setzen',
-            self::VAR_IDENT_EVENING_MODE => 'Vorrang abends setzen',
-        ] as $ident => $scriptName) {
-
-            $varID = @$this->GetIDForIdent($ident);
-            if (!$varID) {
-                continue;
-            }
-
-            // Vorhandenes Skript suchen
-            $scriptID = 0;
-            foreach (IPS_GetChildrenIDs($this->InstanceID) as $childID) {
-                if (IPS_GetObject($childID)['ObjectType'] === OBJECTTYPE_SCRIPT
-                    && IPS_GetObject($childID)['ObjectName'] === $scriptName) {
-                    $scriptID = $childID;
-                    break;
-                }
-            }
-
-            $content = "<?php\nRequestAction({$varID}, \$_IPS['VALUE']);\n";
-
-            if ($scriptID === 0) {
-                $scriptID = IPS_CreateScript(SCRIPTTYPE_PHP);
-                IPS_SetParent($scriptID, $this->InstanceID);
-                IPS_SetName($scriptID, $scriptName);
-            }
-            IPS_SetScriptContent($scriptID, $content);
-
-            // Skript als Aktion der Variable setzen
-            IPS_SetVariableCustomAction($varID, $scriptID);
-        }
-
         // Wert aus Property synchronisieren (beim Speichern der Konfiguration)
         $this->SetValue(self::VAR_IDENT_MORNING_MODE, $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING));
         $this->SetValue(self::VAR_IDENT_EVENING_MODE, $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING));
