@@ -1012,7 +1012,8 @@ class Rolladensteuerung extends IPSModuleStrict
         $tsAutomatik = $this->ReadAttributeInteger(self::ATTR_TIMESTAMP_AUTOMATIC);
 
         // --- 2. Prüfen auf Tageswechsel oder manuelle Bewegungssperre ---
-        if ($this->checkIsDayChange($dayState)) {
+        $dayStateChanged = $this->checkIsDayChange($dayState);
+        if ($dayStateChanged) {
             //beim Tageswechsel ...
             $deactivationTimeAuto = 0;
             $this->WriteAttributeString(
@@ -1085,7 +1086,8 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         // --- 7. Lichtsteuerung ausführen (nach Rollladenbewegung) ---
-        $this->applyLightControl();
+        // Bei Tag/Nacht-Wechsel: Lichtsteuerung immer ausführen auch wenn Kontaktzustand unverändert
+        $this->applyLightControl($dayStateChanged);
 
         // --- 8. Status-Meldung aktualisieren ---
         $prevMsg     = $this->GetValue(self::VAR_IDENT_LAST_MESSAGE);
@@ -1459,7 +1461,7 @@ class Rolladensteuerung extends IPSModuleStrict
      * Jeder Kontakt (1+2) kann für drei Zustände (geschlossen/gekippt/geöffnet)
      * eine Variable (boolean, string, float) schalten.
      */
-    private function applyLightControl(): void
+    private function applyLightControl(bool $forceExecute = false): void
     {
         $lastStates = json_decode($this->ReadAttributeString(self::ATTR_LIGHT_STATE), true, 512, JSON_THROW_ON_ERROR);
 
@@ -1487,9 +1489,9 @@ class Rolladensteuerung extends IPSModuleStrict
                 $state = (bool)GetValue($contactId) ? 2 : 0;
             }
 
-            // Nur bei Zustandsänderung ausführen – verhindert Endlosschleife durch Timer
+            // Bei forceExecute (Tag/Nacht-Wechsel): immer ausführen, sonst nur bei Zustandsänderung
             $lastState = $lastStates[$i] ?? -1;
-            if ($state === $lastState) {
+            if (!$forceExecute && $state === $lastState) {
                 $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Zustand unverändert (%d), kein Lichtschaltbefehl', $i, $state));
                 continue;
             }
