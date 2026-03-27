@@ -207,8 +207,10 @@ class Rolladensteuerung extends IPSModuleStrict
 
 
     //variable names
-    private const string VAR_IDENT_LAST_MESSAGE = 'LAST_MESSAGE';
-    private const string VAR_IDENT_ACTIVATED    = 'ACTIVATED';
+    private const string VAR_IDENT_LAST_MESSAGE    = 'LAST_MESSAGE';
+    private const string VAR_IDENT_ACTIVATED       = 'ACTIVATED';
+    private const string VAR_IDENT_MORNING_MODE    = 'MORNING_MODE';
+    private const string VAR_IDENT_EVENING_MODE    = 'EVENING_MODE';
 
     private const int MOVEMENT_WAIT_TIME         = 90; //Wartezeit bis zur Erreichung der Zielposition in Sekunden
     private const int IGNORE_MOVEMENT_TIME       = 40; //Nach einer Bewegung wird eine erneute gleiche Bewegung innerhalb dieser Zeit ignoriert
@@ -284,6 +286,16 @@ class Rolladensteuerung extends IPSModuleStrict
         switch ($Ident) {
             case self::VAR_IDENT_ACTIVATED:
                 $this->handleActivation($Value);
+                break;
+
+            case self::VAR_IDENT_MORNING_MODE:
+                $this->SetValue(self::VAR_IDENT_MORNING_MODE, (int)$Value);
+                $this->Logger_Inf(sprintf('Vorrang morgens geändert: %s', (int)$Value === 0 ? 'Wochenplan' : 'IsDay'));
+                break;
+
+            case self::VAR_IDENT_EVENING_MODE:
+                $this->SetValue(self::VAR_IDENT_EVENING_MODE, (int)$Value);
+                $this->Logger_Inf(sprintf('Vorrang abends geändert: %s', (int)$Value === 0 ? 'Wochenplan' : 'IsDay'));
                 break;
 
             case self::PROP_SLATSLEVELID:
@@ -1027,8 +1039,9 @@ class Rolladensteuerung extends IPSModuleStrict
         $brightness          = null;
         $isDayByDayDetection = $this->getIsDayByDayDetection($brightness, $currentBlindLevel);
 
-        $morningMode = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING);
-        $eveningMode = $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING);
+        // Modus aus Statusvariable lesen (übersteuert Property-Einstellung aus Konfiguration)
+        $morningMode = $this->GetValue(self::VAR_IDENT_MORNING_MODE);
+        $eveningMode = $this->GetValue(self::VAR_IDENT_EVENING_MODE);
         $lastIsDay   = $this->ReadAttributeBoolean('AttrIsDay');
 
         // Morgen-Quelle (auffahren):
@@ -1051,16 +1064,17 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         // isDay bestimmen:
-        // Beide Quellen können unabhängig steuern.
-        // Schließen hat Vorrang wenn Konflikt (Sicherheit).
-        if ($closeSignal === false) {
-            // Abend-Quelle sagt Nacht → zufahren
+        // Jede Quelle ist nur für ihren Übergang zuständig:
+        // - closeSignal=false: Abend-Quelle will zufahren (nur relevant wenn aktuell offen)
+        // - openSignal=true:   Morgen-Quelle will auffahren (nur relevant wenn aktuell zu)
+        if ($lastIsDay === true && $closeSignal === false) {
+            // Rollladen ist offen, Abend-Quelle sagt Nacht → zufahren
             $isDay = false;
-        } elseif ($openSignal === true) {
-            // Morgen-Quelle sagt Tag → auffahren
+        } elseif ($lastIsDay === false && $openSignal === true) {
+            // Rollladen ist zu, Morgen-Quelle sagt Tag → auffahren
             $isDay = true;
         } else {
-            // Keine klare Aussage von beiden → gespeicherten Zustand beibehalten
+            // Kein Übergang → Zustand beibehalten
             $isDay = $lastIsDay;
         }
 
@@ -1794,7 +1808,24 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterVariableBoolean(self::VAR_IDENT_ACTIVATED, $this->Translate('Activated'), ['PRESENTATION' => VARIABLE_PRESENTATION_SWITCH]);
         $this->RegisterVariableString(self::VAR_IDENT_LAST_MESSAGE, $this->Translate('Last Message'));
 
+        // Profil für Morgen-/Abend-Modus anlegen (0=Wochenplan, 1=IsDay)
+        $profileName = 'Rolladensteuerung.Mode';
+        if (!IPS_VariableProfileExists($profileName)) {
+            IPS_CreateVariableProfile($profileName, VARIABLETYPE_INTEGER);
+        }
+        IPS_SetVariableProfileAssociation($profileName, 0, $this->Translate('Wochenplan'), '', -1);
+        IPS_SetVariableProfileAssociation($profileName, 1, $this->Translate('IsDay / Helligkeit'), '', -1);
+
+        $this->RegisterVariableInteger(self::VAR_IDENT_MORNING_MODE, $this->Translate('Vorrang morgens'), $profileName);
+        $this->RegisterVariableInteger(self::VAR_IDENT_EVENING_MODE, $this->Translate('Vorrang abends'), $profileName);
+
         $this->EnableAction(self::VAR_IDENT_ACTIVATED);
+        $this->EnableAction(self::VAR_IDENT_MORNING_MODE);
+        $this->EnableAction(self::VAR_IDENT_EVENING_MODE);
+
+        // Wert aus Property synchronisieren (beim Speichern der Konfiguration)
+        $this->SetValue(self::VAR_IDENT_MORNING_MODE, $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING));
+        $this->SetValue(self::VAR_IDENT_EVENING_MODE, $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING));
     }
 
     private function RegisterLinks(): void
