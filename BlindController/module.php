@@ -588,6 +588,29 @@ class Rolladensteuerung extends IPSModuleStrict
                     break;
                 }
 
+                // Freigabe-Variable der Lichtsteuerung: nur applyLightControl, kein ControlBlind
+                $isConditionVar = false;
+                foreach ([1, 2] as $i) {
+                    if ($SenderID === $this->ReadPropertyInteger("Contact{$i}LightConditionVar")) {
+                        $isConditionVar = true;
+                        break;
+                    }
+                }
+                if ($isConditionVar) {
+                    // Zustand zurücksetzen damit Lichtsteuerung beim nächsten Lauf neu ausgeführt wird
+                    $lastStates = json_decode($this->ReadAttributeString(self::ATTR_LIGHT_STATE), true, 512, JSON_THROW_ON_ERROR);
+                    foreach ([1, 2] as $i) {
+                        if ($SenderID === $this->ReadPropertyInteger("Contact{$i}LightConditionVar")) {
+                            $lastStates[$i] = -1; // Zustand invalidieren
+                        }
+                    }
+                    $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode($lastStates, JSON_THROW_ON_ERROR));
+                    if ($this->GetValue(self::VAR_IDENT_ACTIVATED) && IPS_GetKernelRunlevel() === KR_READY) {
+                        $this->applyLightControl();
+                    }
+                    break;
+                }
+
                 $this->handleUpdateMessage($SenderID, $Data, false);
                 break;
         }
@@ -1398,9 +1421,6 @@ class Rolladensteuerung extends IPSModuleStrict
                     $state = 0;
                 }
             } else {
-                // Korrekter Property-Name (Wert der Konstante, nicht der Konstantenname)
-                $state = $this->isContactOpen(constant("self::PROP_CONTACTOPEN{$i}ID") . 'ID') ? 2 : 0;
-                // isContactOpen erwartet den Property-Namen – direkt den Wert auslesen
                 $state = (bool)GetValue($contactId) ? 2 : 0;
             }
 
@@ -1774,6 +1794,15 @@ class Rolladensteuerung extends IPSModuleStrict
         $blindLevelId = $this->ReadPropertyInteger(self::PROP_BLINDLEVELID);
         if (IPS_VariableExists($blindLevelId)) {
             $this->RegisterMessage($blindLevelId, VM_UPDATE);
+        }
+
+        // Freigabe-Variablen der Lichtsteuerung beobachten
+        // Wenn Freigabe auf true wechselt → Lichtsteuerung sofort ausführen
+        foreach ([1, 2] as $i) {
+            $id = $this->ReadPropertyInteger("Contact{$i}LightConditionVar");
+            if (IPS_VariableExists($id)) {
+                $this->RegisterMessage($id, VM_UPDATE);
+            }
         }
         // VM_CHANGEPROFILEACTION nicht mehr registrieren – kein Zyklus durch Aktor-Rückmeldung
     }
