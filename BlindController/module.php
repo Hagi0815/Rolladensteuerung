@@ -346,17 +346,16 @@ class Rolladensteuerung extends IPSModuleStrict
             );
             $traceStr = implode(' <- ', $trace);
 
-            // Deaktivierung aus Timer/Skript-Kontext verhindern
-            // Nur WebFront-Klick (kein aktiver Skript-Thread) darf deaktivieren
-            $thread = IPS_GetScriptThread(IPS_GetExecutionID());
-            $isTimer = ($thread['Sender'] ?? '') === 'TimerEvent'
-                    || ($thread['Sender'] ?? '') === 'ScriptEngine';
+            // Deaktivierung aus Timer-Kontext verhindern – nur Webfront/Benutzer darf deaktivieren
+            // IPS_GetExecutionID() existiert in IPS 8 nicht mehr → $_IPS['SENDER'] auswerten
+            $sender   = $_IPS['SENDER'] ?? '';
+            $isTimer  = in_array($sender, ['TimerEvent', 'ScriptEngine', 'Execute'], true);
 
             if ($isTimer) {
                 $this->Logger_Inf(sprintf(
-                    '\'%s\': Deaktivierung durch Timer/Skript blockiert. Aufrufer: %s',
+                    '\'%s\': Deaktivierung durch Timer/Skript blockiert (Sender: %s).',
                     IPS_GetObject($this->InstanceID)['ObjectName'],
-                    $traceStr
+                    $sender
                 ));
                 return; // Deaktivierung verweigert
             }
