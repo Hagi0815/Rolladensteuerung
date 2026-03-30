@@ -335,41 +335,20 @@ class Rolladensteuerung extends IPSModuleStrict
 
     private function handleActivation(mixed $Value): void
     {
+        $objName = IPS_GetObject($this->InstanceID)['ObjectName'];
+
         if ($Value) {
             $this->resetManualMovement();
-            $this->Logger_Inf(sprintf('\'%s\' wurde aktiviert.', IPS_GetObject($this->InstanceID)['ObjectName']));
+            $this->Logger_Inf(sprintf('\'%s\' wurde aktiviert.', $objName));
         } else {
-            // Aufruf-Stack loggen um die Quelle der Deaktivierung zu finden
-            $trace = array_map(
-                static fn($f) => sprintf('%s:%s', $f['function'] ?? '?', $f['line'] ?? '?'),
-                array_slice(debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 6), 1)
-            );
-            $traceStr = implode(' <- ', $trace);
-
-            // Deaktivierung aus Timer-Kontext verhindern – nur Webfront/Benutzer darf deaktivieren
-            // IPS_GetExecutionID() existiert in IPS 8 nicht mehr → $_IPS['SENDER'] auswerten
-            $sender   = $_IPS['SENDER'] ?? '';
-            $isTimer  = in_array($sender, ['TimerEvent', 'ScriptEngine', 'Execute'], true);
-
-            if ($isTimer) {
-                $this->Logger_Inf(sprintf(
-                    '\'%s\': Deaktivierung durch Timer/Skript blockiert (Sender: %s).',
-                    IPS_GetObject($this->InstanceID)['ObjectName'],
-                    $sender
-                ));
-                return; // Deaktivierung verweigert
-            }
-
-            $this->Logger_Inf(sprintf(
-                '\'%s\' wurde deaktiviert. Aufrufer: %s',
-                IPS_GetObject($this->InstanceID)['ObjectName'],
-                $traceStr
-            ));
+            // Deaktivierung: nur Webfront-Klick oder externe Boolean-Variable erlaubt.
+            // Das Modul ruft RequestAction auf ACTIVATED nie selbst auf – daher kein Sender-Check nötig.
+            $this->Logger_Inf(sprintf('\'%s\' wurde deaktiviert (Sender: %s).', $objName, $_IPS['SENDER'] ?? '–'));
         }
 
-        $this->SetValue(self::VAR_IDENT_ACTIVATED, $Value);
+        $this->SetValue(self::VAR_IDENT_ACTIVATED, (bool)$Value);
         $this->SetInstanceStatusAndTimerEvent();
-        $this->RegisterOnceTimer('BlindControlTimer', sprintf('BLC_ControlBlind(%s, %s);', $this->InstanceID, 'false'));
+        $this->RegisterOnceTimer('BlindControlTimer', sprintf('BLC_ControlBlind(%s, false);', $this->InstanceID));
     }
 
     /**
