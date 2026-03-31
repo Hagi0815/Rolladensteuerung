@@ -4001,30 +4001,29 @@ class Rolladensteuerung extends IPSModuleStrict
 
     private function getIsDayByTimeSchedule(): ?bool
     {
-        $heute_auf = null;
-        $heute_ab  = null;
-
-        if (!$this->getUpAndDownPoints($heute_auf, $heute_ab)) {
+        $weeklyTimeTableEventId = $this->ReadPropertyInteger(self::PROP_WEEKLYTIMETABLEEVENTID);
+        if (!$event = @IPS_GetEvent($weeklyTimeTableEventId)) {
             return null;
         }
 
-        $this->Logger_Dbg(__FUNCTION__, sprintf('heute_auf: %s, heute_ab: %s', $heute_auf ?? 'null', $heute_ab ?? 'null'));
+        // EventActive enthält die aktuell aktive ActionID des Wochenplans
+        // ActionID 1 = Tag (auf), ActionID 2 = Nacht (zu)
+        // Dieser Wert wird von IPS direkt beim Schaltpunkt gesetzt – zuverlässiger als Zeitvergleich
+        $currentActionID = $event['EventActive'] ?? null;
 
-        if ($heute_auf === null) {
-            return false; // Kein Auffahrzeitpunkt → immer Nacht
+        if ($currentActionID === null) {
+            return null;
         }
 
-        $now     = time();
-        $tsAuf   = strtotime($heute_auf);
-        $tsAb    = ($heute_ab !== null) ? strtotime($heute_ab) : null;
+        $isDay = ((int)$currentActionID === 1);
 
-        // Tag wenn: Auffahrzeit erreicht UND (keine Abendzeit oder Abendzeit noch nicht erreicht)
-        // Abendzeit streng: < statt <= damit genau zum Schaltpunkt die Nacht beginnt
-        if ($tsAb !== null) {
-            return ($now >= $tsAuf) && ($now < $tsAb);
-        }
+        $this->Logger_Dbg(__FUNCTION__, sprintf(
+            'EventActive=%s → isDay=%s',
+            $currentActionID,
+            $isDay ? 'true' : 'false'
+        ));
 
-        return $now >= $tsAuf;
+        return $isDay;
     }
 
     //-------------------------------------
