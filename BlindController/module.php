@@ -339,11 +339,20 @@ class Rolladensteuerung extends IPSModuleStrict
 
         if ($Value) {
             $this->resetManualMovement();
-            $this->Logger_Inf(sprintf('\'%s\' wurde aktiviert.', $objName));
+            $this->Logger_Inf(sprintf('\'%s\' wurde aktiviert (Sender: %s).', $objName, $_IPS['SENDER'] ?? '–'));
         } else {
-            // Deaktivierung: nur Webfront-Klick oder externe Boolean-Variable erlaubt.
-            // Das Modul ruft RequestAction auf ACTIVATED nie selbst auf – daher kein Sender-Check nötig.
-            $this->Logger_Inf(sprintf('\'%s\' wurde deaktiviert (Sender: %s).', $objName, $_IPS['SENDER'] ?? '–'));
+            // Deaktivierung nur durch Webfront-Klick erlaubt (Sender = 'Action' oder leer)
+            // Skripte und Timer dürfen nicht deaktivieren
+            $sender      = $_IPS['SENDER'] ?? '';
+            $blockedSenders = ['Execute', 'ScriptEngine', 'TimerEvent', 'RunScript'];
+            if (in_array($sender, $blockedSenders, true)) {
+                $this->Logger_Inf(sprintf(
+                    '\'%s\': Deaktivierung durch "%s" blockiert – nur Webfront/Konfigurator erlaubt.',
+                    $objName, $sender
+                ));
+                return;
+            }
+            $this->Logger_Inf(sprintf('\'%s\' wurde deaktiviert (Sender: %s).', $objName, $sender));
         }
 
         $this->SetValue(self::VAR_IDENT_ACTIVATED, (bool)$Value);
