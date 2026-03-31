@@ -1958,6 +1958,17 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterVariableInteger(self::VAR_IDENT_MORNING_MODE, $this->Translate('Vorrang morgens'), $profileName);
         $this->RegisterVariableInteger(self::VAR_IDENT_EVENING_MODE, $this->Translate('Vorrang abends'),  $profileName);
 
+        // Custom Action zurücksetzen falls ein früherer Build IPS_SetVariableCustomAction gesetzt hat
+        // (macht die Variable sonst read-only wenn das Skript nicht mehr existiert)
+        $activatedID = $this->GetIDForIdent(self::VAR_IDENT_ACTIVATED);
+        if ($activatedID && IPS_VariableExists($activatedID)) {
+            $varInfo = IPS_GetVariable($activatedID);
+            if (($varInfo['VariableAction'] ?? 0) > 10000) {
+                // Eine Skript-ID ist hinterlegt – zurücksetzen
+                IPS_SetVariableCustomAction($activatedID, 0);
+            }
+        }
+
         $this->EnableAction(self::VAR_IDENT_ACTIVATED);
         $this->EnableAction(self::VAR_IDENT_MORNING_MODE);
         $this->EnableAction(self::VAR_IDENT_EVENING_MODE);
