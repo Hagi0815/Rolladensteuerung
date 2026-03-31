@@ -3888,26 +3888,19 @@ class Rolladensteuerung extends IPSModuleStrict
         $eventScheduleGroups = IPS_GetEvent($this->ReadPropertyInteger(self::PROP_WEEKLYTIMETABLEEVENTID))['ScheduleGroups'];
 
         foreach ($eventScheduleGroups as $scheduleGroup) {
-            // ActionID 1 = Tag (Rollladen auf) – darf max. einmal vorkommen
-            // ActionID 2 = Nacht (Rollladen zu) – darf mehrfach vorkommen (Mitternacht + Abend)
             $countID1 = $this->CountNumberOfPointsWithActionId($scheduleGroup['Points'], 1);
             $countID2 = $this->CountNumberOfPointsWithActionId($scheduleGroup['Points'], 2);
 
-            // Leere Gruppen (noch keine Zeiten eingetragen) werden übersprungen
             if (($countID1 + $countID2) === 0) {
                 continue;
             }
 
             if ($countID1 > 1) {
-                $this->Logger_Dbg(
-                    __FUNCTION__,
-                    sprintf(
-                        'Invalid TimeTable: More (%s) than one Point with ActionID 1 (Tag/auf). (ScheduleGroup: %s)',
-                        $countID1,
-                        json_encode($scheduleGroup, JSON_THROW_ON_ERROR)
-                    )
-                );
-                return self::STATUS_INST_TIMETABLE_IS_INVALID;
+                // Nur Warnung im Log – kein Fehler-Status, Steuerung läuft trotzdem
+                $this->Logger_Inf(sprintf(
+                    'Wochenplan-Hinweis: Mehr als ein Auffahrzeitpunkt (%d) in einer Gruppe. Erster Zeitpunkt wird verwendet.',
+                    $countID1
+                ));
             }
         }
 
@@ -4001,24 +3994,19 @@ class Rolladensteuerung extends IPSModuleStrict
 
     private function getIsDayByTimeSchedule(): ?bool
     {
-        $weeklyTimeTableEventId = $this->ReadPropertyInteger(self::PROP_WEEKLYTIMETABLEEVENTID);
-        if (!$event = @IPS_GetEvent($weeklyTimeTableEventId)) {
+        $eventID = $this->ReadPropertyInteger(self::PROP_WEEKLYTIMETABLEEVENTID);
+        if (!IPS_EventExists($eventID)) {
             return null;
         }
 
-        // EventActive enthält die aktuell aktive ActionID des Wochenplans
+        // IPS_GetEventScheduleActionFor gibt die aktuell gültige ActionID zurück
         // ActionID 1 = Tag (auf), ActionID 2 = Nacht (zu)
-        // Dieser Wert wird von IPS direkt beim Schaltpunkt gesetzt – zuverlässiger als Zeitvergleich
-        $currentActionID = $event['EventActive'] ?? null;
+        $currentActionID = IPS_GetEventScheduleActionFor($eventID, time());
 
-        if ($currentActionID === null) {
-            return null;
-        }
-
-        $isDay = ((int)$currentActionID === 1);
+        $isDay = ($currentActionID === 1);
 
         $this->Logger_Dbg(__FUNCTION__, sprintf(
-            'EventActive=%s → isDay=%s',
+            'IPS_GetEventScheduleActionFor=%d → isDay=%s',
             $currentActionID,
             $isDay ? 'true' : 'false'
         ));
