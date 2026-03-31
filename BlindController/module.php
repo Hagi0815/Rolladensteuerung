@@ -338,26 +338,79 @@ class Rolladensteuerung extends IPSModuleStrict
         $objName = IPS_GetObject($this->InstanceID)['ObjectName'];
 
         if ($Value) {
+            // Aktivieren ist immer erlaubt (Webfront, Skript, Timer)
             $this->resetManualMovement();
-            $this->Logger_Inf(sprintf('\'%s\' wurde aktiviert (Sender: %s).', $objName, $_IPS['SENDER'] ?? '–'));
+            $this->Logger_Inf(sprintf('\'%s\' wurde aktiviert.', $objName));
         } else {
-            // Deaktivierung nur durch Webfront-Klick erlaubt (Sender = 'Action' oder leer)
-            // Skripte und Timer dürfen nicht deaktivieren
-            $sender      = $_IPS['SENDER'] ?? '';
-            $blockedSenders = ['Execute', 'ScriptEngine', 'TimerEvent', 'RunScript'];
-            if (in_array($sender, $blockedSenders, true)) {
-                $this->Logger_Inf(sprintf(
-                    '\'%s\': Deaktivierung durch "%s" blockiert – nur Webfront/Konfigurator erlaubt.',
-                    $objName, $sender
-                ));
-                return;
-            }
-            $this->Logger_Inf(sprintf('\'%s\' wurde deaktiviert (Sender: %s).', $objName, $sender));
+            // Deaktivieren über RequestAction ist grundsätzlich verboten.
+            // Nur SetValue (direkter Aufruf aus Konfigurator oder ACTIVATED-Variable selbst) ist erlaubt.
+            // Da handleActivation ausschließlich über RequestAction aufgerufen wird,
+            // blockieren wir Deaktivierung hier komplett.
+            $this->Logger_Inf(sprintf(
+                '\'%s\': Deaktivierung über RequestAction blockiert. Nur über Webfront-Boolean oder Konfigurator möglich.',
+                $objName
+            ));
+            return;
         }
 
-        $this->SetValue(self::VAR_IDENT_ACTIVATED, (bool)$Value);
+        $this->SetValue(self::VAR_IDENT_ACTIVATED, true);
         $this->SetInstanceStatusAndTimerEvent();
         $this->RegisterOnceTimer('BlindControlTimer', sprintf('BLC_ControlBlind(%s, false);', $this->InstanceID));
+    }
+
+    /**
+     * Setzt ACTIVATED direkt – darf nur intern oder vom Konfigurator aufgerufen werden.
+     * Nicht über RequestAction erreichbar.
+     */
+    private function setActivated(bool $value): void
+    {
+        $objName = IPS_GetObject($this->InstanceID)['ObjectName'];
+        $this->Logger_Inf(sprintf('\'%s\' wurde %s.', $objName, $value ? 'aktiviert' : 'deaktiviert'));
+        $this->SetValue(self::VAR_IDENT_ACTIVATED, $value);
+        $this->SetInstanceStatusAndTimerEvent();
+        if ($value) {
+            $this->resetManualMovement();
+            $this->RegisterOnceTimer('BlindControlTimer', sprintf('BLC_ControlBlind(%s, false);', $this->InstanceID));
+        }
+    }
+
+    /**
+     * Legt ein Aktionsskript für die ACTIVATED-Variable an.
+     * Das Skript setzt die Variable direkt per SetValue – nicht über RequestAction.
+     * Dadurch kann kein externes Skript über RequestAction deaktivieren.
+     */
+    private function registerActivationScript(): void
+    {
+        $varID     = $this->GetIDForIdent(self::VAR_IDENT_ACTIVATED);
+        $scriptName = 'Aktivierung setzen';
+
+        $scriptID = 0;
+        foreach (IPS_GetChildrenIDs($this->InstanceID) as $childID) {
+            if (IPS_GetObject($childID)['ObjectType'] === OBJECTTYPE_SCRIPT
+                && IPS_GetObject($childID)['ObjectName'] === $scriptName) {
+                $scriptID = $childID;
+                break;
+            }
+        }
+
+        $instanceID = $this->InstanceID;
+        // Das Skript setzt die Variable direkt und ruft dann BLC_ControlBlind auf
+        $content = <<<PHP
+<?php
+\$value = (bool)\$_IPS['VALUE'];
+SetValue({$varID}, \$value);
+if (\$value) {
+    BLC_ControlBlind({$instanceID}, false);
+}
+PHP;
+
+        if ($scriptID === 0) {
+            $scriptID = IPS_CreateScript(SCRIPTTYPE_PHP);
+            IPS_SetParent($scriptID, $this->InstanceID);
+            IPS_SetName($scriptID, $scriptName);
+        }
+        IPS_SetScriptContent($scriptID, $content);
+        IPS_SetVariableCustomAction($varID, $scriptID);
     }
 
     /**
@@ -1951,6 +2004,11 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterVariableBoolean(self::VAR_IDENT_ACTIVATED, $this->Translate('Activated'), ['PRESENTATION' => VARIABLE_PRESENTATION_SWITCH]);
         $this->RegisterVariableString(self::VAR_IDENT_LAST_MESSAGE, $this->Translate('Last Message'));
 
+        // Aktionsskript für ACTIVATED anlegen
+        // Setzt die Variable direkt per SetValue – nicht über RequestAction,
+        // damit externe Skripte nicht über RequestAction deaktivieren können
+        $this->registerActivationScript();
+
         // Profil für Morgen-/Abend-Modus (0=Wochenplan, 1=IsDay)
         $profileName = 'Rolladensteuerung.Mode';
         if (!IPS_VariableProfileExists($profileName)) {
@@ -1962,7 +2020,6 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterVariableInteger(self::VAR_IDENT_MORNING_MODE, $this->Translate('Vorrang morgens'), $profileName);
         $this->RegisterVariableInteger(self::VAR_IDENT_EVENING_MODE, $this->Translate('Vorrang abends'),  $profileName);
 
-        $this->EnableAction(self::VAR_IDENT_ACTIVATED);
         $this->EnableAction(self::VAR_IDENT_MORNING_MODE);
         $this->EnableAction(self::VAR_IDENT_EVENING_MODE);
 
