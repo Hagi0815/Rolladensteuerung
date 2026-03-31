@@ -549,12 +549,12 @@ class Rolladensteuerung extends IPSModuleStrict
                 break;
 
             case EM_UPDATE:
-                // Wochenplan-Schaltpunkt: nur Steuerungslauf auslösen, KEIN SetInstanceStatusAndTimerEvent
+                // Wochenplan-Schaltpunkt: Steuerungslauf ohne Sperrzeit auslösen
                 if ($this->GetValue(self::VAR_IDENT_ACTIVATED) && IPS_GetKernelRunlevel() === KR_READY) {
                     $this->setTriggerStatus('Wochenplan');
                     $this->RegisterOnceTimer(
                         'BlindControlTimer_ControlBlind',
-                        sprintf('BLC_ControlBlind(%s, true);', $this->InstanceID)
+                        sprintf('BLC_ControlBlind(%s, false);', $this->InstanceID)
                     );
                 }
                 break;
