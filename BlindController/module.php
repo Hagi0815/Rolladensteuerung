@@ -3994,21 +3994,33 @@ class Rolladensteuerung extends IPSModuleStrict
 
     private function getIsDayByTimeSchedule(): ?bool
     {
-        $eventID = $this->ReadPropertyInteger(self::PROP_WEEKLYTIMETABLEEVENTID);
-        if (!IPS_EventExists($eventID)) {
+        $heute_auf = null;
+        $heute_ab  = null;
+
+        if (!$this->getUpAndDownPoints($heute_auf, $heute_ab)) {
             return null;
         }
 
-        // IPS_GetEventScheduleActionFor gibt die aktuell gültige ActionID zurück
-        // ActionID 1 = Tag (auf), ActionID 2 = Nacht (zu)
-        $currentActionID = IPS_GetEventScheduleActionFor($eventID, time());
+        $this->Logger_Dbg(__FUNCTION__, sprintf(
+            'heute_auf: %s, heute_ab: %s, now: %s',
+            $heute_auf ?? 'null',
+            $heute_ab  ?? 'null',
+            date('H:i:s')
+        ));
 
-        $isDay = ($currentActionID === 1);
+        if ($heute_auf === null) {
+            return false;
+        }
+
+        $now   = time();
+        $tsAuf = strtotime($heute_auf);
+        $tsAb  = ($heute_ab !== null) ? strtotime($heute_ab) : strtotime('tomorrow 00:00:00');
+
+        $isDay = ($now >= $tsAuf) && ($now < $tsAb);
 
         $this->Logger_Dbg(__FUNCTION__, sprintf(
-            'IPS_GetEventScheduleActionFor=%d → isDay=%s',
-            $currentActionID,
-            $isDay ? 'true' : 'false'
+            'tsAuf=%s tsAb=%s now=%d → isDay=%s',
+            $tsAuf, $tsAb ?? 'null', $now, $isDay ? 'true' : 'false'
         ));
 
         return $isDay;
