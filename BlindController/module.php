@@ -1009,17 +1009,18 @@ class Rolladensteuerung extends IPSModuleStrict
         // --- 2. Prüfen auf Tageswechsel oder manuelle Bewegungssperre ---
         $dayStateChanged = $this->checkIsDayChange($dayState);
         if ($dayStateChanged) {
-            //beim Tageswechsel ...
+            // Beim Tageswechsel: Sperre aufheben, manuelle Bewegung zurücksetzen
             $deactivationTimeAuto = 0;
             $this->WriteAttributeString(
                 self::ATTR_MANUALMOVEMENT,
                 json_encode(['timeStamp' => null, 'blindLevel' => null, 'slatsLevel' => null], JSON_THROW_ON_ERROR)
             );
             $bNoMove = false;
+        } elseif (!$considerDeactivationTimeAuto) {
+            // Kein Tageswechsel, aber Sperrzeit soll ignoriert werden (z.B. Kontakt-Trigger, WP-PHP-Code)
+            $bNoMove = false;
         } else {
-            // während der Verzögerung ist die ursprüngliche Tageszeit anzunehmen
             $isDay = $dayState['isDay'];
-
             $bNoMove = $this->shouldBlockMovement(
                 $positionsAct['BlindLevel'],
                 $positionsAct['SlatsLevel'],
@@ -1469,19 +1470,18 @@ class Rolladensteuerung extends IPSModuleStrict
 
         $lastStates = json_decode($this->ReadAttributeString(self::ATTR_LIGHT_STATE), true, 512, JSON_THROW_ON_ERROR);
 
-        // Property-Namen direkt als Array – constant() funktioniert nicht mit private Klassenkonstanten
         $contactProps = [
             1 => [
-                'id'        => self::PROP_CONTACTOPEN1ID,
-                'useInt'    => self::PROP_CONTACTOPEN1_USE_INTEGER,
-                'tiltVal'   => self::PROP_CONTACTOPEN1_TILT_VALUE,
-                'openVal'   => self::PROP_CONTACTOPEN1_OPEN_VALUE,
+                'id'      => self::PROP_CONTACTOPEN1ID,
+                'useInt'  => self::PROP_CONTACTOPEN1_USE_INTEGER,
+                'tiltVal' => self::PROP_CONTACTOPEN1_TILT_VALUE,
+                'openVal' => self::PROP_CONTACTOPEN1_OPEN_VALUE,
             ],
             2 => [
-                'id'        => self::PROP_CONTACTOPEN2ID,
-                'useInt'    => self::PROP_CONTACTOPEN2_USE_INTEGER,
-                'tiltVal'   => self::PROP_CONTACTOPEN2_TILT_VALUE,
-                'openVal'   => self::PROP_CONTACTOPEN2_OPEN_VALUE,
+                'id'      => self::PROP_CONTACTOPEN2ID,
+                'useInt'  => self::PROP_CONTACTOPEN2_USE_INTEGER,
+                'tiltVal' => self::PROP_CONTACTOPEN2_TILT_VALUE,
+                'openVal' => self::PROP_CONTACTOPEN2_OPEN_VALUE,
             ],
         ];
 
@@ -1508,68 +1508,50 @@ class Rolladensteuerung extends IPSModuleStrict
                 $state = (bool)GetValue($contactId) ? 2 : 0;
             }
 
-            // Ausführen wenn:
-            // - Zustand hat sich geändert ODER noch nie ausgeführt (lastState=-1)
-            // - Bei forceExecute (Tag/Nacht-Wechsel): nur wenn Griff aktiv (state > 0)
             $lastState = $lastStates[$i] ?? -1;
+
             $this->Logger_Dbg(__FUNCTION__, sprintf(
                 'Kontakt %d: state=%d, lastState=%d, forceExecute=%s',
                 $i, $state, $lastState, $forceExecute ? 'ja' : 'nein'
             ));
 
-            $stateChanged = ($state !== $lastState || $lastState === -1);
-
-            if ($forceExecute) {
-                // Bei Nacht-Wechsel: nur ausführen wenn Griff gekippt oder geöffnet
-                if ($state === 0) {
-                    $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: forceExecute aber Griff geschlossen – übersprungen', $i));
-                    continue;
-                }
-            } elseif (!$stateChanged) {
-                $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Zustand unverändert (%d) – übersprungen', $i, $state));
+            // Nur ausführen wenn:
+            // - Zustand hat sich geändert
+            // - ODER forceExecute (Tag/Nacht-Wechsel) und Griff nicht geschlossen
+            if ($forceExecute && $state > 0) {
+                // Nacht-Wechsel mit aktiver Griffstellung → ausführen
+            } elseif ($state === $lastState && $lastState !== -1) {
+                $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Zustand unverändert – übersprungen', $i));
                 continue;
             }
 
-            // Freigabe-Variable prüfen (optional): wenn gesetzt, muss sie true sein
+            // Freigabe-Variable prüfen
             $conditionVarId = $this->ReadPropertyInteger("Contact{$i}LightConditionVar");
             if (IPS_VariableExists($conditionVarId) && !GetValueBoolean($conditionVarId)) {
-                $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Lichtsteuerung gesperrt (Freigabe-Variable #%d = false)', $i, $conditionVarId));
-                // Zustand NICHT speichern – beim nächsten Aufruf erneut prüfen falls Freigabe inzwischen true
+                $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Freigabe-Variable false – übersprungen', $i));
                 continue;
             }
 
-            // Neuen Zustand erst jetzt speichern (nach Freigabe-Prüfung)
+            // Zustand speichern
             $lastStates[$i] = $state;
 
             $stateKey = match ($state) {
-                0 => 'Closed',
-                1 => 'Tilt',
-                2 => 'Open',
+                0       => 'Closed',
+                1       => 'Tilt',
+                default => 'Open',
             };
 
             $enabledProp = "Contact{$i}Light{$stateKey}Enabled";
-            $isEnabled   = $this->ReadPropertyBoolean($enabledProp);
-            $varId       = $this->ReadPropertyInteger("Contact{$i}Light{$stateKey}Var");
-
-            $this->Logger_Dbg(__FUNCTION__, sprintf(
-                'Kontakt %d Zustand=%s: Enabled=%s, VarID=%d, VarExists=%s, forceExecute=%s',
-                $i, $stateKey,
-                $isEnabled ? 'ja' : 'nein',
-                $varId,
-                IPS_VariableExists($varId) ? 'ja' : 'nein',
-                $forceExecute ? 'ja' : 'nein'
-            ));
-
-            if (!$isEnabled) {
+            if (!$this->ReadPropertyBoolean($enabledProp)) {
                 continue;
             }
 
+            $varId = $this->ReadPropertyInteger("Contact{$i}Light{$stateKey}Var");
             if (!IPS_VariableExists($varId)) {
                 continue;
             }
 
-            $type = $this->ReadPropertyString("Contact{$i}Light{$stateKey}Type");
-
+            $type  = $this->ReadPropertyString("Contact{$i}Light{$stateKey}Type");
             $value = match ($type) {
                 'boolean' => (bool)$this->ReadPropertyInteger("Contact{$i}Light{$stateKey}Bool"),
                 'string'  => $this->ReadPropertyString("Contact{$i}Light{$stateKey}String"),
@@ -1581,17 +1563,16 @@ class Rolladensteuerung extends IPSModuleStrict
                 continue;
             }
 
-            $this->Logger_Dbg(
-                __FUNCTION__,
-                sprintf('Kontakt %d, Zustand=%s (war %d): Setze Variable #%d auf %s', $i, $stateKey, $lastState, $varId, (string)$value)
-            );
+            $this->Logger_Dbg(__FUNCTION__, sprintf(
+                'Kontakt %d Zustand=%s: Setze Variable #%d auf %s',
+                $i, $stateKey, $varId, var_export($value, true)
+            ));
 
             if (!RequestAction($varId, $value)) {
-                $this->Logger_Err(sprintf('Lichtsteuerung: RequestAction auf Variable #%d fehlgeschlagen', $varId));
+                $this->Logger_Err(sprintf('Lichtsteuerung: RequestAction auf #%d fehlgeschlagen', $varId));
             }
         }
 
-        // Aktualisierte Zustände speichern
         $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode($lastStates, JSON_THROW_ON_ERROR));
     }
 
