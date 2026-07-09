@@ -285,7 +285,7 @@ class Rolladensteuerung extends IPSModuleStrict
 
         switch ($Ident) {
             case self::VAR_IDENT_ACTIVATED:
-                $this->handleActivation($Value);
+                $this->handleActivation($Value, 'WebFront / App / API');
                 break;
 
             case self::VAR_IDENT_MORNING_MODE:
@@ -333,7 +333,7 @@ class Rolladensteuerung extends IPSModuleStrict
         }
     }
 
-    private function handleActivation(mixed $Value): void
+    private function handleActivation(mixed $Value, string $caller = 'WebFront / App / API'): void
     {
         $objName = IPS_GetObject($this->InstanceID)['ObjectName'];
         $value   = (bool)$Value;
@@ -342,84 +342,35 @@ class Rolladensteuerung extends IPSModuleStrict
             $this->resetManualMovement();
         }
 
-        $this->Logger_Inf(sprintf(
-            '\'%s\' wurde %s. Auslöser: %s',
-            $objName,
-            $value ? 'aktiviert' : 'deaktiviert',
-            $this->getCallerInfo()
-        ));
+        $action     = $value ? 'aktiviert' : 'deaktiviert';
+        $logMessage = sprintf('\'%s\' wurde %s. Auslöser: %s', $objName, $action, $caller);
+        $this->Logger_Inf($logMessage);
 
         $this->SetValue(self::VAR_IDENT_ACTIVATED, $value);
         $this->SetInstanceStatusAndTimerEvent();
 
         if ($value) {
+            // Bei Aktivierung: Auslöser sofort in LAST_MESSAGE schreiben –
+            // ControlBlind übernimmt ihn über den triggerPart-Regex.
+            $this->setTriggerStatus('Aktivierung durch: ' . $caller);
             $this->RegisterOnceTimer('BlindControlTimer', sprintf('BLC_ControlBlind(%s, false);', $this->InstanceID));
+        } else {
+            // Bei Deaktivierung folgt kein ControlBlind → direkt in LAST_MESSAGE schreiben.
+            $msg = date('H:i:s') . ' | Automatik deaktiviert | Auslöser: ' . $caller;
+            $this->SetValue(self::VAR_IDENT_LAST_MESSAGE, $msg);
         }
     }
 
     /**
-     * Liefert einen lesbaren Beschreibungstext darüber, wer/was die Aktivierung ausgelöst hat.
-     * Wertet die IPS-Superglobale $_IPS aus, die im jeweiligen Ausführungskontext befüllt ist.
+     * Aktiviert oder deaktiviert die Automatik mit explizitem Auslöser-Text.
+     * Aufruf aus externen Skripten: BLC_SetActivated($id, true, 'Urlaubsmodus-Skript');
+     *
+     * @param bool   $value  true = aktivieren, false = deaktivieren
+     * @param string $caller Freitext-Beschreibung des Auslösers (wird ins Log geschrieben)
      */
-    private function getCallerInfo(): string
+    public function SetActivated(bool $value, string $caller = 'Skript'): void
     {
-        $sender = $_IPS['SENDER'] ?? 'unbekannt';
-
-        switch ($sender) {
-            case 'WebFront':
-                // Ausgelöst über WebFront-Klick – UserId wenn vorhanden
-                $userId = $_IPS['VALUE'] ?? null;
-                return 'WebFront (Benutzer-ID: ' . ($userId !== null ? (string)$userId : 'unbekannt') . ')';
-
-            case 'Execute':
-                // Direkte Scriptausführung über Konsole oder Skript
-                $scriptId = $_IPS['SELF'] ?? 0;
-                if ($scriptId && IPS_ObjectExists($scriptId)) {
-                    $name = IPS_GetObject($scriptId)['ObjectName'];
-                    return sprintf('Skript "%s" (ID %d)', $name, $scriptId);
-                }
-                return 'Skript-Ausführung (ID: ' . $scriptId . ')';
-
-            case 'Variable':
-                // Ausgelöst durch eine Variable (z.B. externe Boolean-Verknüpfung)
-                $varId = $_IPS['VARIABLE'] ?? 0;
-                if ($varId && IPS_VariableExists($varId)) {
-                    $varName = IPS_GetObject($varId)['ObjectName'];
-                    return sprintf('Variable "%s" (ID %d)', $varName, $varId);
-                }
-                return 'Variable (ID: ' . $varId . ')';
-
-            case 'RunScript':
-                // Aus einem anderen IPS-Skript heraus aufgerufen
-                $scriptId = $_IPS['CALLER'] ?? ($_IPS['SELF'] ?? 0);
-                if ($scriptId && IPS_ObjectExists($scriptId)) {
-                    $name = IPS_GetObject($scriptId)['ObjectName'];
-                    return sprintf('Skript "%s" (ID %d)', $name, $scriptId);
-                }
-                return 'Skript-Aufruf (ID: ' . $scriptId . ')';
-
-            case 'TimerEvent':
-                $eventId = $_IPS['EVENT'] ?? 0;
-                if ($eventId && IPS_ObjectExists($eventId)) {
-                    $name = IPS_GetObject($eventId)['ObjectName'];
-                    return sprintf('Timer-Ereignis "%s" (ID %d)', $name, $eventId);
-                }
-                return 'Timer-Ereignis (ID: ' . $eventId . ')';
-
-            case 'Flow':
-                return 'Ablaufplan';
-
-            case 'MobileApp':
-                $userId = $_IPS['VALUE'] ?? null;
-                return 'Symcon App' . ($userId !== null ? ' (Benutzer-ID: ' . $userId . ')' : '');
-
-            case 'APIv1':
-            case 'API':
-                return 'API-Aufruf (' . $sender . ')';
-
-            default:
-                return $sender;
-        }
+        $this->handleActivation($value, $caller);
     }
 
     /**
@@ -1161,7 +1112,7 @@ class Rolladensteuerung extends IPSModuleStrict
         // --- 8. Status-Meldung aktualisieren ---
         $prevMsg     = $this->GetValue(self::VAR_IDENT_LAST_MESSAGE);
         $triggerPart = '';
-        if (preg_match('/Ausgelöst durch: (.+?) \|/', $prevMsg, $m)) {
+        if (preg_match('/(?:Ausgelöst|Aktivierung) durch: (.+?) \|/', $prevMsg, $m)) {
             $triggerPart = ' | Auslöser: ' . $m[1];
         }
 
