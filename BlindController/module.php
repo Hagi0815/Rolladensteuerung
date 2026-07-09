@@ -1154,11 +1154,18 @@ class Rolladensteuerung extends IPSModuleStrict
         // Jede Quelle ist nur für ihren Übergang zuständig:
         // - closeSignal=false: Abend-Quelle will zufahren (nur relevant wenn aktuell offen)
         // - openSignal=true:   Morgen-Quelle will auffahren (nur relevant wenn aktuell zu)
+        //
+        // Sonderfall Quellen-Konflikt (morgens=WP, abends=IsDay):
+        // Der WP-Zeitbereich bleibt nach dem abendlichen Schließen durch IsDay noch aktiv
+        // (isDayByTimeSchedule=true bis Mitternacht). Wenn dann ein beliebiger Trigger
+        // ControlBlind aufruft, würde openSignal=true fälschlicherweise wieder auffahren.
+        // Schutz: openSignal darf nur auffahren wenn closeSignal NICHT explizit Nacht meldet.
         if ($lastIsDay === true && $closeSignal === false) {
             // Rollladen ist offen, Abend-Quelle sagt Nacht → zufahren
             $isDay = false;
-        } elseif ($lastIsDay === false && $openSignal === true) {
+        } elseif ($lastIsDay === false && $openSignal === true && $closeSignal !== false) {
             // Rollladen ist zu, Morgen-Quelle sagt Tag → auffahren
+            // aber nur wenn Abend-Quelle nicht gleichzeitig Nacht signalisiert
             $isDay = true;
         } else {
             // Kein Übergang → Zustand beibehalten
@@ -1166,11 +1173,12 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         $this->Logger_Dbg(__FUNCTION__, sprintf(
-            'morningMode=%d openSignal=%s, eveningMode=%d closeSignal=%s, lastIsDay=%s → isDay=%s',
+            'morningMode=%d openSignal=%s, eveningMode=%d closeSignal=%s, lastIsDay=%s → isDay=%s%s',
             $morningMode, var_export($openSignal, true),
             $eveningMode, var_export($closeSignal, true),
             $lastIsDay ? 'true' : 'false',
-            $isDay ? 'true' : 'false'
+            $isDay ? 'true' : 'false',
+            ($openSignal === true && $closeSignal === false) ? ' [Quellen-Konflikt: closeSignal blockiert openSignal]' : ''
         ));
 
         return [
