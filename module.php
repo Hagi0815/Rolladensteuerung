@@ -285,7 +285,7 @@ class Rolladensteuerung extends IPSModuleStrict
 
         switch ($Ident) {
             case self::VAR_IDENT_ACTIVATED:
-                $this->handleActivation($Value, 'WebFront / App / API');
+                $this->handleActivation($Value, $this->detectCallerFromThread());
                 break;
 
             case self::VAR_IDENT_MORNING_MODE:
@@ -371,6 +371,70 @@ class Rolladensteuerung extends IPSModuleStrict
     public function SetActivated(bool $value, string $caller = 'Skript'): void
     {
         $this->handleActivation($value, $caller);
+    }
+
+    /**
+     * Ermittelt den Auslöser der aktuellen Ausführung anhand des IPS-Thread-Kontexts.
+     *
+     * IPS_GetScriptThread() liefert für den aktuell laufenden Thread:
+     *   - ThreadID, ParentID, Type
+     *   - Type 0 = Skript, 1 = Timer/Ereignis, 2 = WebFront/API, 3 = Modul-intern
+     *
+     * Durch Traversierung der ParentID-Kette lässt sich das auslösende Objekt
+     * (Skript, Ereignis, etc.) mit Namen bestimmen.
+     */
+    private function detectCallerFromThread(): string
+    {
+        // Alle laufenden Threads holen und den passenden finden
+        $threads = IPS_GetScriptThreadList();
+        $currentThreadId = IPS_GetCurrentThreadID();
+
+        $currentThread = null;
+        foreach ($threads as $thread) {
+            if ($thread['ThreadID'] === $currentThreadId) {
+                $currentThread = $thread;
+                break;
+            }
+        }
+
+        if ($currentThread === null) {
+            return 'unbekannt';
+        }
+
+        $parentId = $currentThread['ParentID'] ?? 0;
+        $type     = $currentThread['Type'] ?? -1;
+
+        // Type 2 = WebFront / App / API
+        if ($type === 2) {
+            return 'WebFront / App / API';
+        }
+
+        // ParentID auf auslösendes Objekt prüfen
+        if ($parentId > 0 && IPS_ObjectExists($parentId)) {
+            $obj     = IPS_GetObject($parentId);
+            $objName = $obj['ObjectName'];
+            $objType = $obj['ObjectType']; // 3=Skript, 4=Ereignis, 1=Instanz
+
+            switch ($objType) {
+                case OBJECTTYPE_SCRIPT: // 3
+                    return sprintf('Skript "%s" (ID %d)', $objName, $parentId);
+                case OBJECTTYPE_EVENT: // 4
+                    return sprintf('Ereignis "%s" (ID %d)', $objName, $parentId);
+                case OBJECTTYPE_INSTANCE: // 1
+                    return sprintf('Instanz "%s" (ID %d)', $objName, $parentId);
+                default:
+                    return sprintf('"%s" (ID %d, Typ %d)', $objName, $parentId, $objType);
+            }
+        }
+
+        // Fallback: nur Type
+        return match ($type) {
+            0       => 'Skript-Ausführung',
+            1       => 'Timer / Ereignis',
+            2       => 'WebFront / App / API',
+            3       => 'Modul-intern',
+            default => sprintf('Thread-Typ %d', $type),
+        };
     }
 
     /**
