@@ -905,6 +905,21 @@
                 },
                 {
                     "type": "ExpansionPanel",
+                    "caption": "Lichtsteuerung – Allgemein",
+                    "items": [
+                        {
+                            "type": "Label",
+                            "caption": "Die Lichtsteuerung wird über die Statusvariable 'Lichtsteuerung' der Instanz ein-/ausgeschaltet (auch per BLC_SetLightControl($id, true/false)). Sie arbeitet unabhängig vom Schalter 'Aktiviert' der Rollladen-Automatik."
+                        },
+                        {
+                            "type": "CheckBox",
+                            "name": "LightOnlyAtNight",
+                            "caption": "Lichtsteuerung nur in der Nachtphase ausführen"
+                        }
+                    ]
+                },
+                {
+                    "type": "ExpansionPanel",
                     "caption": "Lichtsteuerung Kontakt 1 (optional)",
                     "items": [
                         {

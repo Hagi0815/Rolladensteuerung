@@ -124,6 +124,8 @@ class Rolladensteuerung extends IPSModuleStrict
     // Freigabe-Variable für Lichtsteuerung (Boolean-Variable, muss true sein)
     private const string PROP_CONTACT1_LIGHT_CONDITION_VAR      = 'Contact1LightConditionVar';
     private const string PROP_CONTACT2_LIGHT_CONDITION_VAR      = 'Contact2LightConditionVar';
+    // Lichtsteuerung nur in der Nachtphase ausführen (true) oder immer (false)
+    private const string PROP_LIGHT_ONLY_AT_NIGHT               = 'LightOnlyAtNight';
     private const string PROP_EMERGENCYCONTACTID                = 'EmergencyContactID';
     private const string PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY = 'ContactsToCloseHaveHigherPriority';
     private const string PROP_PRIORITY_MODE_MORNING             = 'PriorityModeMorning';
@@ -211,6 +213,7 @@ class Rolladensteuerung extends IPSModuleStrict
     private const string VAR_IDENT_ACTIVATED       = 'ACTIVATED';
     private const string VAR_IDENT_MORNING_MODE    = 'MORNING_MODE';
     private const string VAR_IDENT_EVENING_MODE    = 'EVENING_MODE';
+    private const string VAR_IDENT_LIGHT_CONTROL   = 'LIGHT_CONTROL'; // Hauptschalter Lichtsteuerung
 
     private const int MOVEMENT_WAIT_TIME         = 90; //Wartezeit bis zur Erreichung der Zielposition in Sekunden
     private const int IGNORE_MOVEMENT_TIME       = 40; //Nach einer Bewegung wird eine erneute gleiche Bewegung innerhalb dieser Zeit ignoriert
@@ -288,6 +291,10 @@ class Rolladensteuerung extends IPSModuleStrict
                 $this->handleActivation($Value);
                 break;
 
+            case self::VAR_IDENT_LIGHT_CONTROL:
+                $this->SetLightControl((bool)$Value);
+                break;
+
             case self::VAR_IDENT_MORNING_MODE:
                 $this->SetValue(self::VAR_IDENT_MORNING_MODE, (int)$Value);
                 $this->Logger_Inf(sprintf('Vorrang morgens geändert: %s', (int)$Value === 0 ? 'Wochenplan' : 'IsDay'));
@@ -353,6 +360,67 @@ class Rolladensteuerung extends IPSModuleStrict
 
         if ($value) {
             $this->RegisterOnceTimer('BlindControlTimer', sprintf('BLC_ControlBlind(%s, false);', $this->InstanceID));
+        }
+    }
+
+    /**
+     * Schaltet die Lichtsteuerung (Kontakte 1+2) ein oder aus.
+     * Unabhängig von der Rollladen-Automatik.
+     * Aufruf aus Skripten: BLC_SetLightControl($id, true);
+     */
+    public function SetLightControl(bool $Value): void
+    {
+        $this->SetValue(self::VAR_IDENT_LIGHT_CONTROL, $Value);
+        $this->Logger_Inf(sprintf(
+            '\'%s\': Lichtsteuerung %s.',
+            IPS_GetObject($this->InstanceID)['ObjectName'],
+            $Value ? 'aktiviert' : 'deaktiviert'
+        ));
+
+        if ($Value) {
+            // Zustände invalidieren und aktuellen Kontaktzustand sofort anwenden
+            $this->resetLightStates();
+            $this->runLightControl(false);
+        }
+    }
+
+    /**
+     * Gibt zurück, ob der Hauptschalter der Lichtsteuerung eingeschaltet ist.
+     */
+    private function isLightControlEnabled(): bool
+    {
+        $id = @IPS_GetObjectIDByIdent(self::VAR_IDENT_LIGHT_CONTROL, $this->InstanceID);
+        return is_int($id) && $id > 0 && (bool)GetValue($id);
+    }
+
+    private function resetLightStates(): void
+    {
+        $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Führt die Lichtsteuerung threadsicher aus – unabhängig von ControlBlind
+     * und vom Schalter "Aktiviert" der Rollladen-Automatik.
+     */
+    private function runLightControl(bool $forceExecute): void
+    {
+        if (IPS_GetKernelRunlevel() !== KR_READY) {
+            return;
+        }
+        if (!$this->isLightControlEnabled()) {
+            $this->Logger_Dbg(__FUNCTION__, 'Lichtsteuerung über Schalter deaktiviert – übersprungen');
+            return;
+        }
+        if (!IPS_SemaphoreEnter($this->InstanceID . '-Light', 5000)) {
+            $this->Logger_Dbg(__FUNCTION__, 'Semaphore Lichtsteuerung nicht erhalten');
+            return;
+        }
+        try {
+            $this->applyLightControl($forceExecute, $this->ReadAttributeBoolean('AttrIsDay'));
+        } catch (\Throwable $e) {
+            $this->Logger_Err('Lichtsteuerung: ' . $e->getMessage());
+        } finally {
+            IPS_SemaphoreLeave($this->InstanceID . '-Light');
         }
     }
 
@@ -588,10 +656,17 @@ class Rolladensteuerung extends IPSModuleStrict
                         }
                     }
                     $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode($lastStates, JSON_THROW_ON_ERROR));
-                    if ($this->GetValue(self::VAR_IDENT_ACTIVATED) && IPS_GetKernelRunlevel() === KR_READY) {
-                        $this->applyLightControl(false, $this->ReadAttributeBoolean('AttrIsDay'));
-                    }
+                    $this->runLightControl(false);
                     break;
+                }
+
+                // Öffnen-Kontakte: Lichtsteuerung sofort und unabhängig von der
+                // Rollladen-Automatik ausführen (nur Hauptschalter Lichtsteuerung zählt)
+                if (in_array($SenderID, [
+                    $this->ReadPropertyInteger(self::PROP_CONTACTOPEN1ID),
+                    $this->ReadPropertyInteger(self::PROP_CONTACTOPEN2ID),
+                ], true)) {
+                    $this->runLightControl(false);
                 }
 
                 $this->handleUpdateMessage($SenderID, $Data, false);
@@ -1081,12 +1156,13 @@ class Rolladensteuerung extends IPSModuleStrict
             $this->MoveBlind($blindLevel, $slatsLevel, $deactivationTimeAuto, $Hinweis);
         }
 
-        // --- 7. Lichtsteuerung ausführen (nach Rollladenbewegung) ---
-        // Bei Tag/Nacht-Wechsel: lastStates zurücksetzen damit Lichtsteuerung immer neu ausgeführt wird
+        // --- 7. Lichtsteuerung beim Tag/Nacht-Wechsel ---
+        // Kontaktänderungen werden direkt im MessageSink behandelt (runLightControl),
+        // hier nur der Tag/Nacht-Wechsel: lastStates zurücksetzen und erzwungen ausführen.
         if ($dayStateChanged) {
-            $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
+            $this->resetLightStates();
+            $this->runLightControl(true);
         }
-        $this->applyLightControl($dayStateChanged, $isDay);
 
         // --- 8. Status-Meldung aktualisieren ---
         $prevMsg     = $this->GetValue(self::VAR_IDENT_LAST_MESSAGE);
@@ -1470,9 +1546,9 @@ class Rolladensteuerung extends IPSModuleStrict
      */
     private function applyLightControl(bool $forceExecute = false, bool $isDay = false): void
     {
-        // Lichtsteuerung nur aktiv während der Nachtphase (isDay=false)
-        if ($isDay) {
-            $this->Logger_Dbg(__FUNCTION__, 'Lichtsteuerung inaktiv: Tagphase (isDay=true)');
+        // Optional: Lichtsteuerung nur während der Nachtphase (isDay=false)
+        if ($isDay && $this->ReadPropertyBoolean(self::PROP_LIGHT_ONLY_AT_NIGHT)) {
+            $this->Logger_Dbg(__FUNCTION__, 'Lichtsteuerung inaktiv: Tagphase (Option "nur nachts")');
             return;
         }
 
@@ -1576,8 +1652,18 @@ class Rolladensteuerung extends IPSModuleStrict
                 $i, $stateKey, $varId, var_export($value, true)
             ));
 
-            if (!RequestAction($varId, $value)) {
-                $this->Logger_Err(sprintf('Lichtsteuerung: RequestAction auf #%d fehlgeschlagen', $varId));
+            // Variable mit Aktion → RequestAction (schaltet das Gerät),
+            // Variable ohne Aktion → SetValue (RequestAction würde fehlschlagen)
+            $varInfo   = IPS_GetVariable($varId);
+            $hasAction = ($varInfo['VariableCustomAction'] ?? 0) > 1
+                || (($varInfo['VariableCustomAction'] ?? 0) === 0 && ($varInfo['VariableAction'] ?? 0) > 1);
+            $ok = $hasAction ? @RequestAction($varId, $value) : SetValue($varId, $value);
+            if (!$ok) {
+                $this->Logger_Err(sprintf(
+                    'Lichtsteuerung: %s auf #%d fehlgeschlagen',
+                    $hasAction ? 'RequestAction' : 'SetValue',
+                    $varId
+                ));
             }
         }
 
@@ -1792,6 +1878,7 @@ class Rolladensteuerung extends IPSModuleStrict
             // Freigabe-Variable (Boolean muss true sein damit Lichtsteuerung aktiv ist)
             $this->RegisterPropertyInteger("Contact{$i}LightConditionVar", 0);
         }
+        $this->RegisterPropertyBoolean(self::PROP_LIGHT_ONLY_AT_NIGHT, true);
 
         //emergency contact
         $this->RegisterPropertyInteger(self::PROP_EMERGENCYCONTACTID, 0);
@@ -1935,6 +2022,14 @@ class Rolladensteuerung extends IPSModuleStrict
     {
         $this->RegisterVariableBoolean(self::VAR_IDENT_ACTIVATED, $this->Translate('Activated'), ['PRESENTATION' => VARIABLE_PRESENTATION_SWITCH]);
         $this->RegisterVariableString(self::VAR_IDENT_LAST_MESSAGE, $this->Translate('Last Message'));
+
+        // Hauptschalter Lichtsteuerung (beim ersten Anlegen eingeschaltet)
+        $lightVarExisted = @IPS_GetObjectIDByIdent(self::VAR_IDENT_LIGHT_CONTROL, $this->InstanceID) !== false;
+        $this->RegisterVariableBoolean(self::VAR_IDENT_LIGHT_CONTROL, 'Lichtsteuerung', ['PRESENTATION' => VARIABLE_PRESENTATION_SWITCH]);
+        $this->EnableAction(self::VAR_IDENT_LIGHT_CONTROL);
+        if (!$lightVarExisted) {
+            $this->SetValue(self::VAR_IDENT_LIGHT_CONTROL, true);
+        }
 
         // Profil für Morgen-/Abend-Modus (0=Wochenplan, 1=IsDay)
         $profileName = 'Rolladensteuerung.Mode';
