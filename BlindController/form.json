@@ -909,7 +909,7 @@
                     "items": [
                         {
                             "type": "Label",
-                            "caption": "Die Lichtsteuerung wird über die Statusvariable 'Lichtsteuerung' der Instanz ein-/ausgeschaltet (auch per BLC_SetLightControl($id, true/false)). Sie arbeitet unabhängig vom Schalter 'Aktiviert' der Rollladen-Automatik."
+                            "caption": "Die Lichtsteuerung wird über die Statusvariable 'Lichtsteuerung' der Instanz ein-/ausgeschaltet (auch per BLC_SetLightControl($id, true/false)). Sie arbeitet unabhängig vom Schalter 'Aktiviert' der Rollladen-Automatik. Die letzte Entscheidung steht in der Statusvariable 'Lichtsteuerung Info', eine vollständige Übersicht liefert BLC_LightControlDiagnose($id)."
                         },
                         {
                             "type": "CheckBox",
@@ -924,7 +924,7 @@
                     "items": [
                         {
                             "type": "Label",
-                            "caption": "Für jeden Zustand des Kontakts 1 kann eine Variable gesetzt werden."
+                            "caption": "Für jeden Zustand von „Kontakt 1 ID“ unter „Kontakte, bei denen der Rollladen geöffnet wird“ kann eine Variable gesetzt werden."
                         },
                         {
                             "type": "RowLayout",
@@ -1184,7 +1184,7 @@
                     "items": [
                         {
                             "type": "Label",
-                            "caption": "Für jeden Zustand des Kontakts 2 kann eine Variable gesetzt werden."
+                            "caption": "Für jeden Zustand von „Kontakt 2 ID“ unter „Kontakte, bei denen der Rollladen geöffnet wird“ kann eine Variable gesetzt werden."
                         },
                         {
                             "type": "RowLayout",

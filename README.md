@@ -165,6 +165,10 @@ Pro Stellung konfigurierbar:
 
 Zielvariablen mit Aktion werden per `RequestAction` geschaltet, Variablen ohne Aktion per `SetValue`.
 
+**Diagnose:** Die Statusvariable `Lichtsteuerung Info` zeigt nach jeder Kontaktänderung, was geschaltet wurde oder warum nicht (Tagphase, Schalter aus, Freigabe false, Zustand nicht aktiv …). Eine vollständige Übersicht aller Bedingungen liefert `echo BLC_LightControlDiagnose($id);` in der Skript-Konsole.
+
+Hinweis: „Kontakt 1/2“ der Lichtsteuerung sind die Kontakte unter „Kontakte, bei denen der Rollladen geöffnet wird“.
+
 ### 5.8 Kontakte zum Schließen (optional)
 
 Bis zu zwei Kontakte. Solange ein Kontakt aktiv ist, wird der Rollladen auf maximal die konfigurierte Maximalhöhe begrenzt. Auch nur während der Nachtphase aktiv.
