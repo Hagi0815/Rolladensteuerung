@@ -427,6 +427,68 @@ class Rolladensteuerung extends IPSModuleStrict
     }
 
     /**
+     * Liefert die Auswahlwerte einer Variable als Liste [['value' => ..., 'caption' => ...], ...].
+     * Berücksichtigt Variablenprofile (Legacy) und IPS-8-Darstellungen mit OPTIONS (Aufzählung).
+     */
+    private function getVariableOptions(int $varId): array
+    {
+        $result = [];
+        if (!IPS_VariableExists($varId)) {
+            return $result;
+        }
+
+        $presentation = @IPS_GetVariablePresentation($varId);
+        $profileName  = '';
+        if (is_array($presentation)) {
+            if (isset($presentation['OPTIONS'])) {
+                $options = is_string($presentation['OPTIONS'])
+                    ? json_decode($presentation['OPTIONS'], true)
+                    : $presentation['OPTIONS'];
+                foreach ((array)$options as $opt) {
+                    if (is_array($opt) && array_key_exists('Value', $opt)) {
+                        $result[] = ['value' => $opt['Value'], 'caption' => (string)($opt['Caption'] ?? $opt['Value'])];
+                    }
+                }
+            }
+            $profileName = (string)($presentation['PROFILE'] ?? '');
+        }
+        if ($profileName === '') {
+            $v           = IPS_GetVariable($varId);
+            $profileName = ($v['VariableCustomProfile'] ?? '') !== '' ? $v['VariableCustomProfile'] : ($v['VariableProfile'] ?? '');
+        }
+        if ($result === [] && $profileName !== '' && IPS_VariableProfileExists($profileName)) {
+            foreach (IPS_GetVariableProfile($profileName)['Associations'] as $assoc) {
+                $result[] = ['value' => $assoc['Value'], 'caption' => (string)$assoc['Name']];
+            }
+        }
+        return $result;
+    }
+
+    /**
+     * Ein im Formular gewählter Anzeigename (z.B. "Balkontür offen") wird in den
+     * tatsächlichen Wert der Variable übersetzt (z.B. die Szenen-ID der HUE-Szene).
+     * Ist der Wert bereits ein gültiger Wert, bleibt er unverändert.
+     */
+    private function resolveOptionValue(int $varId, mixed $configured): mixed
+    {
+        if (!is_string($configured)) {
+            return $configured;
+        }
+        $options = $this->getVariableOptions($varId);
+        foreach ($options as $opt) {
+            if ((string)$opt['value'] === $configured) {
+                return $opt['value']; // bereits ein echter Wert
+            }
+        }
+        foreach ($options as $opt) {
+            if (strcasecmp(trim($opt['caption']), trim($configured)) === 0) {
+                return $opt['value']; // Anzeigename → echter Wert
+            }
+        }
+        return $configured;
+    }
+
+    /**
      * Sucht in Profil/Darstellung einer Integer-Variable den Wert zu einem Anzeigenamen.
      */
     private function lookupAssociationValue(int $varId, string $name): int
@@ -482,7 +544,17 @@ class Rolladensteuerung extends IPSModuleStrict
                     'float'   => (string)$this->ReadPropertyFloat("Contact{$i}Light{$st}Float"),
                     default   => '?',
                 };
-                $lines[] = "  $st: setze $val ($type) auf " . $fmt($this->ReadPropertyInteger("Contact{$i}Light{$st}Var"));
+                $targetId = $this->ReadPropertyInteger("Contact{$i}Light{$st}Var");
+                $resolved = '';
+                if ($type === 'string' && IPS_VariableExists($targetId)) {
+                    $resolved = ' → gesendet wird ' . var_export($this->resolveOptionValue($targetId, $this->ReadPropertyString("Contact{$i}Light{$st}String")), true);
+                }
+                $lines[] = "  $st: setze $val ($type)$resolved auf " . $fmt($targetId);
+                if ($type === 'string' && IPS_VariableExists($targetId)) {
+                    foreach ($this->getVariableOptions($targetId) as $opt) {
+                        $lines[] = '      Option: ' . var_export($opt['value'], true) . ' = ' . $opt['caption'];
+                    }
+                }
             }
         }
         $id = @IPS_GetObjectIDByIdent(self::VAR_IDENT_LIGHT_INFO, $this->InstanceID);
@@ -568,31 +640,15 @@ class Rolladensteuerung extends IPSModuleStrict
         $options = [['caption' => '-- Wert wählen --', 'value' => '']];
 
         if (IPS_VariableExists($varId)) {
-            $variable    = IPS_GetVariable($varId);
-            $profileName = $variable['VariableCustomProfile'] !== ''
-                ? $variable['VariableCustomProfile']
-                : $variable['VariableProfile'];
+            $variable = IPS_GetVariable($varId);
 
-            if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
-                $profile = IPS_GetVariableProfile($profileName);
-
-                foreach ($profile['Associations'] as $assoc) {
-                    // Bei String-Profilen: 'Name' ist der Anzeige-Text,
-                    // der tatsächliche String-Wert steht in 'StringValue' (falls vorhanden)
-                    // oder identisch in 'Name' wenn kein StringValue existiert.
-                    if (isset($assoc['StringValue']) && $assoc['StringValue'] !== '') {
-                        $val     = $assoc['StringValue'];
-                        $caption = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
-                    } elseif ($profile['ProfileType'] === VARIABLETYPE_STRING) {
-                        // String-Profil ohne StringValue: Name ist der gesendete Wert
-                        $val     = $assoc['Name'];
-                        $caption = $assoc['Name'];
-                    } else {
-                        $val     = (string)$assoc['Value'];
-                        $caption = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
-                    }
-                    $options[] = ['caption' => $caption, 'value' => $val];
-                }
+            // Anzeigename als Beschriftung, tatsächlicher Variablenwert als Wert
+            // (Profil oder IPS-8-Darstellung). Der Name wird zur Laufzeit zusätzlich
+            // über resolveOptionValue() übersetzt – alte Konfigurationen bleiben gültig.
+            foreach ($this->getVariableOptions($varId) as $opt) {
+                $val       = (string)$opt['value'];
+                $caption   = $opt['caption'] !== '' ? $opt['caption'] : $val;
+                $options[] = ['caption' => $caption, 'value' => $val];
             }
 
             // Fallback: aktuellen Wert der Variable anzeigen wenn kein Profil
@@ -1007,25 +1063,16 @@ class Rolladensteuerung extends IPSModuleStrict
                 // Profilwerte der gespeicherten Variable als Optionen laden (für String-Typ)
                 if ($type === 'string' && IPS_VariableExists($varId)) {
                     $options = [['caption' => '-- Wert wählen --', 'value' => '']];
-                    $variable    = IPS_GetVariable($varId);
-                    $profileName = $variable['VariableCustomProfile'] !== ''
-                        ? $variable['VariableCustomProfile']
-                        : $variable['VariableProfile'];
-                    if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
-                        $profile = IPS_GetVariableProfile($profileName);
-                        foreach ($profile['Associations'] as $assoc) {
-                            if (isset($assoc['StringValue']) && $assoc['StringValue'] !== '') {
-                                $val     = $assoc['StringValue'];
-                                $caption = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
-                            } elseif ($profile['ProfileType'] === VARIABLETYPE_STRING) {
-                                $val     = $assoc['Name'];
-                                $caption = $assoc['Name'];
-                            } else {
-                                $val     = (string)$assoc['Value'];
-                                $caption = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
-                            }
-                            $options[] = ['caption' => $caption, 'value' => $val];
-                        }
+                    $values  = [];
+                    foreach ($this->getVariableOptions($varId) as $opt) {
+                        $val       = (string)$opt['value'];
+                        $values[]  = $val;
+                        $options[] = ['caption' => $opt['caption'] !== '' ? $opt['caption'] : $val, 'value' => $val];
+                    }
+                    // Alte Konfiguration (Anzeigename gespeichert) weiterhin anzeigen
+                    $stored = $this->ReadPropertyString("Contact{$i}Light{$state}String");
+                    if ($stored !== '' && !in_array($stored, $values, true)) {
+                        $options[] = ['caption' => $stored, 'value' => $stored];
                     }
                     $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}String", 'options', $options);
                 }
@@ -1746,7 +1793,7 @@ class Rolladensteuerung extends IPSModuleStrict
 
             // Wert an den tatsächlichen Typ der Zielvariable anpassen
             // (z.B. Szene-Variable vom Typ Integer, im Formular als String gewählt)
-            $value = $this->castToVariableType($varId, $value);
+            $value = $this->castToVariableType($varId, $this->resolveOptionValue($varId, $value));
 
             // Variable mit Aktion → RequestAction (schaltet das Gerät),
             // Variable ohne Aktion → SetValue (RequestAction würde fehlschlagen)
