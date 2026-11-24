@@ -124,8 +124,6 @@ class Rolladensteuerung extends IPSModuleStrict
     // Freigabe-Variable für Lichtsteuerung (Boolean-Variable, muss true sein)
     private const string PROP_CONTACT1_LIGHT_CONDITION_VAR      = 'Contact1LightConditionVar';
     private const string PROP_CONTACT2_LIGHT_CONDITION_VAR      = 'Contact2LightConditionVar';
-    // Lichtsteuerung nur in der Nachtphase ausführen (true) oder immer (false)
-    private const string PROP_LIGHT_ONLY_AT_NIGHT               = 'LightOnlyAtNight';
     private const string PROP_EMERGENCYCONTACTID                = 'EmergencyContactID';
     private const string PROP_CONTACTSTOCLOSEHAVEHIGHERPRIORITY = 'ContactsToCloseHaveHigherPriority';
     private const string PROP_PRIORITY_MODE_MORNING             = 'PriorityModeMorning';
@@ -213,8 +211,6 @@ class Rolladensteuerung extends IPSModuleStrict
     private const string VAR_IDENT_ACTIVATED       = 'ACTIVATED';
     private const string VAR_IDENT_MORNING_MODE    = 'MORNING_MODE';
     private const string VAR_IDENT_EVENING_MODE    = 'EVENING_MODE';
-    private const string VAR_IDENT_LIGHT_CONTROL   = 'LIGHT_CONTROL'; // Hauptschalter Lichtsteuerung
-    private const string VAR_IDENT_LIGHT_INFO      = 'LIGHT_INFO';    // letzte Entscheidung der Lichtsteuerung
 
     private const int MOVEMENT_WAIT_TIME         = 90; //Wartezeit bis zur Erreichung der Zielposition in Sekunden
     private const int IGNORE_MOVEMENT_TIME       = 40; //Nach einer Bewegung wird eine erneute gleiche Bewegung innerhalb dieser Zeit ignoriert
@@ -292,10 +288,6 @@ class Rolladensteuerung extends IPSModuleStrict
                 $this->handleActivation($Value);
                 break;
 
-            case self::VAR_IDENT_LIGHT_CONTROL:
-                $this->SetLightControl((bool)$Value);
-                break;
-
             case self::VAR_IDENT_MORNING_MODE:
                 $this->SetValue(self::VAR_IDENT_MORNING_MODE, (int)$Value);
                 $this->Logger_Inf(sprintf('Vorrang morgens geändert: %s', (int)$Value === 0 ? 'Wochenplan' : 'IsDay'));
@@ -365,231 +357,6 @@ class Rolladensteuerung extends IPSModuleStrict
     }
 
     /**
-     * Schaltet die Lichtsteuerung (Kontakte 1+2) ein oder aus.
-     * Unabhängig von der Rollladen-Automatik.
-     * Aufruf aus Skripten: BLC_SetLightControl($id, true);
-     */
-    public function SetLightControl(bool $Value): void
-    {
-        $this->SetValue(self::VAR_IDENT_LIGHT_CONTROL, $Value);
-        $this->Logger_Inf(sprintf(
-            '\'%s\': Lichtsteuerung %s.',
-            IPS_GetObject($this->InstanceID)['ObjectName'],
-            $Value ? 'aktiviert' : 'deaktiviert'
-        ));
-
-        if ($Value) {
-            // Zustände invalidieren und aktuellen Kontaktzustand sofort anwenden
-            $this->resetLightStates();
-            $this->runLightControl(false);
-        }
-    }
-
-    /**
-     * Gibt zurück, ob der Hauptschalter der Lichtsteuerung eingeschaltet ist.
-     */
-    private function isLightControlEnabled(): bool
-    {
-        $id = @IPS_GetObjectIDByIdent(self::VAR_IDENT_LIGHT_CONTROL, $this->InstanceID);
-        return is_int($id) && $id > 0 && (bool)GetValue($id);
-    }
-
-    private function resetLightStates(): void
-    {
-        $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
-    }
-
-    /**
-     * Schreibt die letzte Entscheidung der Lichtsteuerung in die Statusvariable
-     * "Lichtsteuerung Info" und ins Debug-Fenster.
-     */
-    private function setLightInfo(string $text): void
-    {
-        $this->Logger_Dbg('Lichtsteuerung', $text);
-        $id = @IPS_GetObjectIDByIdent(self::VAR_IDENT_LIGHT_INFO, $this->InstanceID);
-        if (is_int($id) && $id > 0) {
-            $this->SetValue(self::VAR_IDENT_LIGHT_INFO, date('H:i:s') . ' | ' . $text);
-        }
-    }
-
-    /**
-     * Wandelt den konfigurierten Wert in den Typ der Zielvariable um.
-     */
-    private function castToVariableType(int $varId, mixed $value): mixed
-    {
-        $varType = IPS_GetVariable($varId)['VariableType'];
-        return match ($varType) {
-            VARIABLETYPE_BOOLEAN => is_string($value) ? in_array(strtolower(trim($value)), ['1', 'true', 'on', 'an', 'ein'], true) : (bool)$value,
-            VARIABLETYPE_INTEGER => (is_string($value) && !is_numeric($value)) ? $this->lookupAssociationValue($varId, $value) : (int)$value,
-            VARIABLETYPE_FLOAT   => (float)$value,
-            default              => is_bool($value) ? ($value ? 'true' : 'false') : (string)$value,
-        };
-    }
-
-    /**
-     * Liefert die Auswahlwerte einer Variable als Liste [['value' => ..., 'caption' => ...], ...].
-     * Berücksichtigt Variablenprofile (Legacy) und IPS-8-Darstellungen mit OPTIONS (Aufzählung).
-     */
-    private function getVariableOptions(int $varId): array
-    {
-        $result = [];
-        if (!IPS_VariableExists($varId)) {
-            return $result;
-        }
-
-        $presentation = @IPS_GetVariablePresentation($varId);
-        $profileName  = '';
-        if (is_array($presentation)) {
-            if (isset($presentation['OPTIONS'])) {
-                $options = is_string($presentation['OPTIONS'])
-                    ? json_decode($presentation['OPTIONS'], true)
-                    : $presentation['OPTIONS'];
-                foreach ((array)$options as $opt) {
-                    if (is_array($opt) && array_key_exists('Value', $opt)) {
-                        $result[] = ['value' => $opt['Value'], 'caption' => (string)($opt['Caption'] ?? $opt['Value'])];
-                    }
-                }
-            }
-            $profileName = (string)($presentation['PROFILE'] ?? '');
-        }
-        if ($profileName === '') {
-            $v           = IPS_GetVariable($varId);
-            $profileName = ($v['VariableCustomProfile'] ?? '') !== '' ? $v['VariableCustomProfile'] : ($v['VariableProfile'] ?? '');
-        }
-        if ($result === [] && $profileName !== '' && IPS_VariableProfileExists($profileName)) {
-            foreach (IPS_GetVariableProfile($profileName)['Associations'] as $assoc) {
-                $result[] = ['value' => $assoc['Value'], 'caption' => (string)$assoc['Name']];
-            }
-        }
-        return $result;
-    }
-
-    /**
-     * Ein im Formular gewählter Anzeigename (z.B. "Balkontür offen") wird in den
-     * tatsächlichen Wert der Variable übersetzt (z.B. die Szenen-ID der HUE-Szene).
-     * Ist der Wert bereits ein gültiger Wert, bleibt er unverändert.
-     */
-    private function resolveOptionValue(int $varId, mixed $configured): mixed
-    {
-        if (!is_string($configured)) {
-            return $configured;
-        }
-        $options = $this->getVariableOptions($varId);
-        foreach ($options as $opt) {
-            if ((string)$opt['value'] === $configured) {
-                return $opt['value']; // bereits ein echter Wert
-            }
-        }
-        foreach ($options as $opt) {
-            if (strcasecmp(trim($opt['caption']), trim($configured)) === 0) {
-                return $opt['value']; // Anzeigename → echter Wert
-            }
-        }
-        return $configured;
-    }
-
-    /**
-     * Sucht in Profil/Darstellung einer Integer-Variable den Wert zu einem Anzeigenamen.
-     */
-    private function lookupAssociationValue(int $varId, string $name): int
-    {
-        $v       = IPS_GetVariable($varId);
-        $profile = ($v['VariableCustomProfile'] ?? '') !== '' ? $v['VariableCustomProfile'] : ($v['VariableProfile'] ?? '');
-        if ($profile !== '' && IPS_VariableProfileExists($profile)) {
-            foreach (IPS_GetVariableProfile($profile)['Associations'] as $assoc) {
-                if (strcasecmp(trim($assoc['Name']), trim($name)) === 0) {
-                    return (int)$assoc['Value'];
-                }
-            }
-        }
-        return (int)$name;
-    }
-
-    /**
-     * Gibt eine Übersicht aller Bedingungen der Lichtsteuerung zurück.
-     * Aufruf in einer Skript-Konsole: echo BLC_LightControlDiagnose(<InstanzID>);
-     */
-    public function LightControlDiagnose(): string
-    {
-        $fmt = static function (int $id): string {
-            if (!IPS_VariableExists($id)) {
-                return 'nicht gesetzt';
-            }
-            $v = IPS_GetVariable($id);
-            return sprintf('#%d [%s] Wert=%s, Typ=%d, Aktion=%d, CustomAction=%d',
-                $id, IPS_GetName($id), var_export(GetValue($id), true),
-                $v['VariableType'], $v['VariableAction'] ?? 0, $v['VariableCustomAction'] ?? 0);
-        };
-        $lines   = [];
-        $lines[] = 'Schalter Lichtsteuerung: ' . ($this->isLightControlEnabled() ? 'AN' : 'AUS');
-        $lines[] = 'Nur nachts: ' . ($this->ReadPropertyBoolean(self::PROP_LIGHT_ONLY_AT_NIGHT) ? 'ja' : 'nein')
-            . ', Modul-Tagphase (AttrIsDay): ' . ($this->ReadAttributeBoolean('AttrIsDay') ? 'TAG' : 'NACHT');
-        $lines[] = 'Rollladen-Automatik aktiviert: ' . ($this->GetValue(self::VAR_IDENT_ACTIVATED) ? 'ja' : 'nein')
-            . ' (AttrIsDay wird nur bei aktiver Automatik aktualisiert)';
-        $lines[] = 'Gespeicherte Zustände: ' . $this->ReadAttributeString(self::ATTR_LIGHT_STATE);
-        foreach ([1, 2] as $i) {
-            $contactProp = $i === 1 ? self::PROP_CONTACTOPEN1ID : self::PROP_CONTACTOPEN2ID;
-            $lines[] = '';
-            $lines[] = "Kontakt $i (Öffnen-Kontakt): " . $fmt($this->ReadPropertyInteger($contactProp));
-            $lines[] = "  Freigabe: " . $fmt($this->ReadPropertyInteger("Contact{$i}LightConditionVar"));
-            foreach (['Closed', 'Tilt', 'Open'] as $st) {
-                if (!$this->ReadPropertyBoolean("Contact{$i}Light{$st}Enabled")) {
-                    $lines[] = "  $st: nicht aktiv";
-                    continue;
-                }
-                $type = $this->ReadPropertyString("Contact{$i}Light{$st}Type");
-                $val  = match ($type) {
-                    'boolean' => $this->ReadPropertyInteger("Contact{$i}Light{$st}Bool") ? 'true' : 'false',
-                    'string'  => '"' . $this->ReadPropertyString("Contact{$i}Light{$st}String") . '"',
-                    'float'   => (string)$this->ReadPropertyFloat("Contact{$i}Light{$st}Float"),
-                    default   => '?',
-                };
-                $targetId = $this->ReadPropertyInteger("Contact{$i}Light{$st}Var");
-                $resolved = '';
-                if ($type === 'string' && IPS_VariableExists($targetId)) {
-                    $resolved = ' → gesendet wird ' . var_export($this->resolveOptionValue($targetId, $this->ReadPropertyString("Contact{$i}Light{$st}String")), true);
-                }
-                $lines[] = "  $st: setze $val ($type)$resolved auf " . $fmt($targetId);
-                if ($type === 'string' && IPS_VariableExists($targetId)) {
-                    foreach ($this->getVariableOptions($targetId) as $opt) {
-                        $lines[] = '      Option: ' . var_export($opt['value'], true) . ' = ' . $opt['caption'];
-                    }
-                }
-            }
-        }
-        $id = @IPS_GetObjectIDByIdent(self::VAR_IDENT_LIGHT_INFO, $this->InstanceID);
-        $lines[] = '';
-        $lines[] = 'Letzte Entscheidung: ' . ((is_int($id) && $id > 0) ? GetValue($id) : '-');
-        return implode(PHP_EOL, $lines);
-    }
-
-    /**
-     * Führt die Lichtsteuerung threadsicher aus – unabhängig von ControlBlind
-     * und vom Schalter "Aktiviert" der Rollladen-Automatik.
-     */
-    private function runLightControl(bool $forceExecute): void
-    {
-        if (IPS_GetKernelRunlevel() !== KR_READY) {
-            return;
-        }
-        if (!$this->isLightControlEnabled()) {
-            $this->setLightInfo('nicht geschaltet – Schalter "Lichtsteuerung" ist aus');
-            return;
-        }
-        if (!IPS_SemaphoreEnter($this->InstanceID . '-Light', 5000)) {
-            $this->Logger_Dbg(__FUNCTION__, 'Semaphore Lichtsteuerung nicht erhalten');
-            return;
-        }
-        try {
-            $this->applyLightControl($forceExecute, $this->ReadAttributeBoolean('AttrIsDay'));
-        } catch (\Throwable $e) {
-            $this->Logger_Err('Lichtsteuerung: ' . $e->getMessage());
-        } finally {
-            IPS_SemaphoreLeave($this->InstanceID . '-Light');
-        }
-    }
-
-    /**
      * Aktualisiert die Sichtbarkeit von Konfigurationsfeldern basierend auf der Auswahl im Formular.
      *
      * @param string $Ident Die ID des betroffenen Elements/Property.
@@ -640,15 +407,31 @@ class Rolladensteuerung extends IPSModuleStrict
         $options = [['caption' => '-- Wert wählen --', 'value' => '']];
 
         if (IPS_VariableExists($varId)) {
-            $variable = IPS_GetVariable($varId);
+            $variable    = IPS_GetVariable($varId);
+            $profileName = $variable['VariableCustomProfile'] !== ''
+                ? $variable['VariableCustomProfile']
+                : $variable['VariableProfile'];
 
-            // Anzeigename als Beschriftung, tatsächlicher Variablenwert als Wert
-            // (Profil oder IPS-8-Darstellung). Der Name wird zur Laufzeit zusätzlich
-            // über resolveOptionValue() übersetzt – alte Konfigurationen bleiben gültig.
-            foreach ($this->getVariableOptions($varId) as $opt) {
-                $val       = (string)$opt['value'];
-                $caption   = $opt['caption'] !== '' ? $opt['caption'] : $val;
-                $options[] = ['caption' => $caption, 'value' => $val];
+            if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
+                $profile = IPS_GetVariableProfile($profileName);
+
+                foreach ($profile['Associations'] as $assoc) {
+                    // Bei String-Profilen: 'Name' ist der Anzeige-Text,
+                    // der tatsächliche String-Wert steht in 'StringValue' (falls vorhanden)
+                    // oder identisch in 'Name' wenn kein StringValue existiert.
+                    if (isset($assoc['StringValue']) && $assoc['StringValue'] !== '') {
+                        $val     = $assoc['StringValue'];
+                        $caption = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
+                    } elseif ($profile['ProfileType'] === VARIABLETYPE_STRING) {
+                        // String-Profil ohne StringValue: Name ist der gesendete Wert
+                        $val     = $assoc['Name'];
+                        $caption = $assoc['Name'];
+                    } else {
+                        $val     = (string)$assoc['Value'];
+                        $caption = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
+                    }
+                    $options[] = ['caption' => $caption, 'value' => $val];
+                }
             }
 
             // Fallback: aktuellen Wert der Variable anzeigen wenn kein Profil
@@ -756,7 +539,16 @@ class Rolladensteuerung extends IPSModuleStrict
     {
         parent::MessageSink($TimeStamp, $SenderID, $Message, $Data);
 
-        $this->logMessageSinkDebug($TimeStamp, $SenderID, $Message, $Data);
+        try {
+            $this->logMessageSinkDebug($TimeStamp, $SenderID, $Message, $Data);
+        } catch (\Throwable $e) {
+            // Debug-Ausgabe darf die Verarbeitung nie verhindern
+        }
+
+        if ($Message === VM_UPDATE && $SenderID === $this->ReadPropertyInteger(self::PROP_ISDAYINDICATORID)
+            && ($Data[1] ?? null) !== false) {
+            $this->Logger_Inf(sprintf('IsDay-Variable #%d geändert → %s', $SenderID, json_encode($Data[0] ?? null)));
+        }
 
         switch ($Message) {
             case IPS_KERNELMESSAGE:
@@ -805,17 +597,10 @@ class Rolladensteuerung extends IPSModuleStrict
                         }
                     }
                     $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode($lastStates, JSON_THROW_ON_ERROR));
-                    $this->runLightControl(false);
+                    if ($this->GetValue(self::VAR_IDENT_ACTIVATED) && IPS_GetKernelRunlevel() === KR_READY) {
+                        $this->applyLightControl(false, $this->ReadAttributeBoolean('AttrIsDay'));
+                    }
                     break;
-                }
-
-                // Öffnen-Kontakte: Lichtsteuerung sofort und unabhängig von der
-                // Rollladen-Automatik ausführen (nur Hauptschalter Lichtsteuerung zählt)
-                if (in_array($SenderID, [
-                    $this->ReadPropertyInteger(self::PROP_CONTACTOPEN1ID),
-                    $this->ReadPropertyInteger(self::PROP_CONTACTOPEN2ID),
-                ], true)) {
-                    $this->runLightControl(false);
                 }
 
                 $this->handleUpdateMessage($SenderID, $Data, false);
@@ -1063,16 +848,25 @@ class Rolladensteuerung extends IPSModuleStrict
                 // Profilwerte der gespeicherten Variable als Optionen laden (für String-Typ)
                 if ($type === 'string' && IPS_VariableExists($varId)) {
                     $options = [['caption' => '-- Wert wählen --', 'value' => '']];
-                    $values  = [];
-                    foreach ($this->getVariableOptions($varId) as $opt) {
-                        $val       = (string)$opt['value'];
-                        $values[]  = $val;
-                        $options[] = ['caption' => $opt['caption'] !== '' ? $opt['caption'] : $val, 'value' => $val];
-                    }
-                    // Alte Konfiguration (Anzeigename gespeichert) weiterhin anzeigen
-                    $stored = $this->ReadPropertyString("Contact{$i}Light{$state}String");
-                    if ($stored !== '' && !in_array($stored, $values, true)) {
-                        $options[] = ['caption' => $stored, 'value' => $stored];
+                    $variable    = IPS_GetVariable($varId);
+                    $profileName = $variable['VariableCustomProfile'] !== ''
+                        ? $variable['VariableCustomProfile']
+                        : $variable['VariableProfile'];
+                    if ($profileName !== '' && IPS_VariableProfileExists($profileName)) {
+                        $profile = IPS_GetVariableProfile($profileName);
+                        foreach ($profile['Associations'] as $assoc) {
+                            if (isset($assoc['StringValue']) && $assoc['StringValue'] !== '') {
+                                $val     = $assoc['StringValue'];
+                                $caption = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
+                            } elseif ($profile['ProfileType'] === VARIABLETYPE_STRING) {
+                                $val     = $assoc['Name'];
+                                $caption = $assoc['Name'];
+                            } else {
+                                $val     = (string)$assoc['Value'];
+                                $caption = $assoc['Name'] !== '' ? $assoc['Name'] : $val;
+                            }
+                            $options[] = ['caption' => $caption, 'value' => $val];
+                        }
                     }
                     $form = $this->MyUpdateFormField($form, "Contact{$i}Light{$state}String", 'options', $options);
                 }
@@ -1296,13 +1090,12 @@ class Rolladensteuerung extends IPSModuleStrict
             $this->MoveBlind($blindLevel, $slatsLevel, $deactivationTimeAuto, $Hinweis);
         }
 
-        // --- 7. Lichtsteuerung beim Tag/Nacht-Wechsel ---
-        // Kontaktänderungen werden direkt im MessageSink behandelt (runLightControl),
-        // hier nur der Tag/Nacht-Wechsel: lastStates zurücksetzen und erzwungen ausführen.
+        // --- 7. Lichtsteuerung ausführen (nach Rollladenbewegung) ---
+        // Bei Tag/Nacht-Wechsel: lastStates zurücksetzen damit Lichtsteuerung immer neu ausgeführt wird
         if ($dayStateChanged) {
-            $this->resetLightStates();
-            $this->runLightControl(true);
+            $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
         }
+        $this->applyLightControl($dayStateChanged, $isDay);
 
         // --- 8. Status-Meldung aktualisieren ---
         $prevMsg     = $this->GetValue(self::VAR_IDENT_LAST_MESSAGE);
@@ -1370,18 +1163,11 @@ class Rolladensteuerung extends IPSModuleStrict
         // Jede Quelle ist nur für ihren Übergang zuständig:
         // - closeSignal=false: Abend-Quelle will zufahren (nur relevant wenn aktuell offen)
         // - openSignal=true:   Morgen-Quelle will auffahren (nur relevant wenn aktuell zu)
-        //
-        // Sonderfall Quellen-Konflikt (morgens=WP, abends=IsDay):
-        // Der WP-Zeitbereich bleibt nach dem abendlichen Schließen durch IsDay noch aktiv
-        // (isDayByTimeSchedule=true bis Mitternacht). Wenn dann ein beliebiger Trigger
-        // ControlBlind aufruft, würde openSignal=true fälschlicherweise wieder auffahren.
-        // Schutz: openSignal darf nur auffahren wenn closeSignal NICHT explizit Nacht meldet.
         if ($lastIsDay === true && $closeSignal === false) {
             // Rollladen ist offen, Abend-Quelle sagt Nacht → zufahren
             $isDay = false;
-        } elseif ($lastIsDay === false && $openSignal === true && $closeSignal !== false) {
+        } elseif ($lastIsDay === false && $openSignal === true) {
             // Rollladen ist zu, Morgen-Quelle sagt Tag → auffahren
-            // aber nur wenn Abend-Quelle nicht gleichzeitig Nacht signalisiert
             $isDay = true;
         } else {
             // Kein Übergang → Zustand beibehalten
@@ -1389,12 +1175,11 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         $this->Logger_Dbg(__FUNCTION__, sprintf(
-            'morningMode=%d openSignal=%s, eveningMode=%d closeSignal=%s, lastIsDay=%s → isDay=%s%s',
+            'morningMode=%d openSignal=%s, eveningMode=%d closeSignal=%s, lastIsDay=%s → isDay=%s',
             $morningMode, var_export($openSignal, true),
             $eveningMode, var_export($closeSignal, true),
             $lastIsDay ? 'true' : 'false',
-            $isDay ? 'true' : 'false',
-            ($openSignal === true && $closeSignal === false) ? ' [Quellen-Konflikt: closeSignal blockiert openSignal]' : ''
+            $isDay ? 'true' : 'false'
         ));
 
         return [
@@ -1403,6 +1188,8 @@ class Rolladensteuerung extends IPSModuleStrict
             'isDayByDayDetection' => $isDayByDayDetection,
             'brightness'          => $brightness,
             'priorityMode'        => $morningMode,
+            'morningMode'         => $morningMode,
+            'eveningMode'         => $eveningMode,
             'isMorningPhase'      => !$lastIsDay,
         ];
     }
@@ -1416,12 +1203,14 @@ class Rolladensteuerung extends IPSModuleStrict
         $positionsNew = $positionsAct;
 
         // Basis-Hinweis
-        if ($dayState['isDayByTimeSchedule'] !== $this->ReadAttributeBoolean(self::ATTR_LAST_ISDAYBYTIMESCHEDULE)) {
+        // Quelle richtet sich nach der Phase: Tag = Vorrang morgens, Nacht = Vorrang abends
+        $activeMode = $dayState['isDay'] ? (int)$dayState['morningMode'] : (int)$dayState['eveningMode'];
+        $srcText    = $activeMode === 1 ? 'IsDay' : 'Wochenplan';
+        if ($activeMode === 0
+            && $dayState['isDayByTimeSchedule'] !== $this->ReadAttributeBoolean(self::ATTR_LAST_ISDAYBYTIMESCHEDULE)) {
             $hint = 'Wochenplan-Schaltpunkt';
-        } elseif ($dayState['isDay']) {
-            $hint = $dayState['priorityMode'] === 1 ? 'Tag (IsDay)' : 'Tag (Wochenplan)';
         } else {
-            $hint = $dayState['priorityMode'] === 1 ? 'Nacht (IsDay)' : 'Nacht (Wochenplan)';
+            $hint = ($dayState['isDay'] ? 'Tag' : 'Nacht') . ' (' . $srcText . ')';
         }
 
         if ($this->ReadAttributeInteger(self::ATTR_DAYTIME_CHANGE_TIME) === 0) {
@@ -1686,12 +1475,11 @@ class Rolladensteuerung extends IPSModuleStrict
      */
     private function applyLightControl(bool $forceExecute = false, bool $isDay = false): void
     {
-        // Optional: Lichtsteuerung nur während der Nachtphase (isDay=false)
-        if ($isDay && $this->ReadPropertyBoolean(self::PROP_LIGHT_ONLY_AT_NIGHT)) {
-            $this->setLightInfo('nicht geschaltet – Tagphase (Option "nur nachts" ist an)');
+        // Lichtsteuerung nur aktiv während der Nachtphase (isDay=false)
+        if ($isDay) {
+            $this->Logger_Dbg(__FUNCTION__, 'Lichtsteuerung inaktiv: Tagphase (isDay=true)');
             return;
         }
-        $notes = [];
 
         $lastStates = json_decode($this->ReadAttributeString(self::ATTR_LIGHT_STATE), true, 512, JSON_THROW_ON_ERROR);
 
@@ -1714,7 +1502,7 @@ class Rolladensteuerung extends IPSModuleStrict
             $props     = $contactProps[$i];
             $contactId = $this->ReadPropertyInteger($props['id']);
             if (!IPS_VariableExists($contactId)) {
-                continue; // Kontakt nicht konfiguriert
+                continue;
             }
 
             // Zustand ermitteln (0=geschlossen, 1=gekippt, 2=geöffnet)
@@ -1746,14 +1534,14 @@ class Rolladensteuerung extends IPSModuleStrict
             if ($forceExecute && $state > 0) {
                 // Nacht-Wechsel mit aktiver Griffstellung → ausführen
             } elseif ($state === $lastState && $lastState !== -1) {
-                $notes[] = sprintf('K%d: Zustand unverändert (%d) – nichts zu tun', $i, $state);
+                $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Zustand unverändert – übersprungen', $i));
                 continue;
             }
 
             // Freigabe-Variable prüfen
             $conditionVarId = $this->ReadPropertyInteger("Contact{$i}LightConditionVar");
             if (IPS_VariableExists($conditionVarId) && !GetValueBoolean($conditionVarId)) {
-                $notes[] = sprintf('K%d: Freigabe #%d ist false – nicht geschaltet', $i, $conditionVarId);
+                $this->Logger_Dbg(__FUNCTION__, sprintf('Kontakt %d: Freigabe-Variable false – übersprungen', $i));
                 continue;
             }
 
@@ -1768,13 +1556,11 @@ class Rolladensteuerung extends IPSModuleStrict
 
             $enabledProp = "Contact{$i}Light{$stateKey}Enabled";
             if (!$this->ReadPropertyBoolean($enabledProp)) {
-                $notes[] = sprintf('K%d: Zustand %s ist nicht aktiviert', $i, $stateKey);
                 continue;
             }
 
             $varId = $this->ReadPropertyInteger("Contact{$i}Light{$stateKey}Var");
             if (!IPS_VariableExists($varId)) {
-                $notes[] = sprintf('K%d: Zielvariable für %s existiert nicht', $i, $stateKey);
                 continue;
             }
 
@@ -1787,38 +1573,18 @@ class Rolladensteuerung extends IPSModuleStrict
             };
 
             if ($value === null) {
-                $notes[] = sprintf('K%d: unbekannter Typ "%s"', $i, $type);
                 continue;
             }
 
-            // Wert an den tatsächlichen Typ der Zielvariable anpassen
-            // (z.B. Szene-Variable vom Typ Integer, im Formular als String gewählt)
-            $value = $this->castToVariableType($varId, $this->resolveOptionValue($varId, $value));
+            $this->Logger_Dbg(__FUNCTION__, sprintf(
+                'Kontakt %d Zustand=%s: Setze Variable #%d auf %s',
+                $i, $stateKey, $varId, var_export($value, true)
+            ));
 
-            // Variable mit Aktion → RequestAction (schaltet das Gerät),
-            // Variable ohne Aktion → SetValue (RequestAction würde fehlschlagen)
-            $varInfo   = IPS_GetVariable($varId);
-            $hasAction = ($varInfo['VariableCustomAction'] ?? 0) > 1
-                || (($varInfo['VariableCustomAction'] ?? 0) === 0 && ($varInfo['VariableAction'] ?? 0) > 1);
-            $method = $hasAction ? 'RequestAction' : 'SetValue (Variable hat keine Aktion!)';
-            try {
-                $ok = $hasAction ? RequestAction($varId, $value) : SetValue($varId, $value);
-            } catch (\Throwable $e) {
-                $ok = false;
-                $method .= ' – ' . $e->getMessage();
-            }
-            $notes[] = sprintf(
-                'K%d %s: #%d [%s] = %s per %s → %s',
-                $i, $stateKey, $varId, IPS_GetName($varId), var_export($value, true), $method, $ok ? 'OK' : 'FEHLER'
-            );
-            if (!$ok) {
-                $this->Logger_Err(sprintf('Lichtsteuerung: %s auf #%d fehlgeschlagen', $method, $varId));
+            if (!RequestAction($varId, $value)) {
+                $this->Logger_Err(sprintf('Lichtsteuerung: RequestAction auf #%d fehlgeschlagen', $varId));
             }
         }
-
-        $this->setLightInfo($notes !== []
-            ? implode(' | ', $notes)
-            : 'nicht geschaltet – kein Öffnen-Kontakt 1/2 konfiguriert (Lichtsteuerung nutzt nur die Kontakte zum Öffnen)');
 
         $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode($lastStates, JSON_THROW_ON_ERROR));
     }
@@ -2031,7 +1797,6 @@ class Rolladensteuerung extends IPSModuleStrict
             // Freigabe-Variable (Boolean muss true sein damit Lichtsteuerung aktiv ist)
             $this->RegisterPropertyInteger("Contact{$i}LightConditionVar", 0);
         }
-        $this->RegisterPropertyBoolean(self::PROP_LIGHT_ONLY_AT_NIGHT, true);
 
         //emergency contact
         $this->RegisterPropertyInteger(self::PROP_EMERGENCYCONTACTID, 0);
@@ -2175,15 +1940,6 @@ class Rolladensteuerung extends IPSModuleStrict
     {
         $this->RegisterVariableBoolean(self::VAR_IDENT_ACTIVATED, $this->Translate('Activated'), ['PRESENTATION' => VARIABLE_PRESENTATION_SWITCH]);
         $this->RegisterVariableString(self::VAR_IDENT_LAST_MESSAGE, $this->Translate('Last Message'));
-
-        // Hauptschalter Lichtsteuerung (beim ersten Anlegen eingeschaltet)
-        $lightVarExisted = @IPS_GetObjectIDByIdent(self::VAR_IDENT_LIGHT_CONTROL, $this->InstanceID) !== false;
-        $this->RegisterVariableBoolean(self::VAR_IDENT_LIGHT_CONTROL, 'Lichtsteuerung', ['PRESENTATION' => VARIABLE_PRESENTATION_SWITCH]);
-        $this->EnableAction(self::VAR_IDENT_LIGHT_CONTROL);
-        if (!$lightVarExisted) {
-            $this->SetValue(self::VAR_IDENT_LIGHT_CONTROL, true);
-        }
-        $this->RegisterVariableString(self::VAR_IDENT_LIGHT_INFO, 'Lichtsteuerung Info');
 
         // Profil für Morgen-/Abend-Modus (0=Wochenplan, 1=IsDay)
         $profileName = 'Rolladensteuerung.Mode';

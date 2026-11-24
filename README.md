@@ -159,16 +159,6 @@ Pro Stellung konfigurierbar:
 
 **Freigabe-Variable** (optional): Lichtsteuerung des gesamten Kontakts nur aktiv wenn diese Boolean-Variable `true` ist.
 
-**Hauptschalter `Lichtsteuerung`** (Statusvariable der Instanz, Boolean): schaltet die komplette Lichtsteuerung für beide Kontakte ein oder aus – per WebFront/App oder Skript mit `BLC_SetLightControl($id, true|false);`. Die Lichtsteuerung arbeitet unabhängig vom Schalter `Aktiviert` der Rollladen-Automatik und reagiert sofort auf Kontaktänderungen.
-
-**Nur in der Nachtphase** (Checkbox unter „Lichtsteuerung – Allgemein“, Standard: an): Ist die Option gesetzt, wird die Lichtsteuerung tagsüber nicht ausgeführt. Beim Wechsel Tag → Nacht wird der aktuelle Kontaktzustand einmalig angewendet.
-
-Zielvariablen mit Aktion werden per `RequestAction` geschaltet, Variablen ohne Aktion per `SetValue`.
-
-**Diagnose:** Die Statusvariable `Lichtsteuerung Info` zeigt nach jeder Kontaktänderung, was geschaltet wurde oder warum nicht (Tagphase, Schalter aus, Freigabe false, Zustand nicht aktiv …). Eine vollständige Übersicht aller Bedingungen liefert `echo BLC_LightControlDiagnose($id);` in der Skript-Konsole.
-
-Hinweis: „Kontakt 1/2“ der Lichtsteuerung sind die Kontakte unter „Kontakte, bei denen der Rollladen geöffnet wird“.
-
 ### 5.8 Kontakte zum Schließen (optional)
 
 Bis zu zwei Kontakte. Solange ein Kontakt aktiv ist, wird der Rollladen auf maximal die konfigurierte Maximalhöhe begrenzt. Auch nur während der Nachtphase aktiv.
