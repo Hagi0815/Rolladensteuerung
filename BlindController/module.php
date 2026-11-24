@@ -813,7 +813,7 @@ class Rolladensteuerung extends IPSModuleStrict
                 $TimeStamp,
                 IPS_GetObject($SenderID)['ObjectName'],
                 $SenderID,
-                array_search($Message, get_defined_constants(true)['IP-Symcon'], true) ?: 'UNKNOWN',
+                [VM_UPDATE => 'VM_UPDATE', EM_UPDATE => 'EM_UPDATE', IPS_KERNELMESSAGE => 'IPS_KERNELMESSAGE'][$Message] ?? 'UNKNOWN',
                 $Message,
                 json_encode($Data, JSON_THROW_ON_ERROR)
             )
