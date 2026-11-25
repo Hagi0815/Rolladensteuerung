@@ -598,7 +598,11 @@ class Rolladensteuerung extends IPSModuleStrict
                     }
                     $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode($lastStates, JSON_THROW_ON_ERROR));
                     if ($this->GetValue(self::VAR_IDENT_ACTIVATED) && IPS_GetKernelRunlevel() === KR_READY) {
-                        $this->applyLightControl(false, $this->ReadAttributeBoolean('AttrIsDay'));
+                        try {
+                            $this->applyLightControl(false, $this->ReadAttributeBoolean('AttrIsDay'));
+                        } catch (\Throwable $e) {
+                            $this->Logger_Err('Lichtsteuerung: ' . $e->getMessage());
+                        }
                     }
                     break;
                 }
@@ -1095,7 +1099,11 @@ class Rolladensteuerung extends IPSModuleStrict
         if ($dayStateChanged) {
             $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
         }
-        $this->applyLightControl($dayStateChanged, $isDay);
+        try {
+            $this->applyLightControl($dayStateChanged, $isDay);
+        } catch (\Throwable $e) {
+            $this->Logger_Err('Lichtsteuerung: ' . $e->getMessage());
+        }
 
         // --- 8. Status-Meldung aktualisieren ---
         $prevMsg     = $this->GetValue(self::VAR_IDENT_LAST_MESSAGE);
@@ -1581,12 +1589,44 @@ class Rolladensteuerung extends IPSModuleStrict
                 $i, $stateKey, $varId, var_export($value, true)
             ));
 
-            if (!RequestAction($varId, $value)) {
-                $this->Logger_Err(sprintf('Lichtsteuerung: RequestAction auf #%d fehlgeschlagen', $varId));
+            // Zustand sofort sichern, damit ein Fehler im Aktor den nächsten Lauf nicht blockiert
+            $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode($lastStates, JSON_THROW_ON_ERROR));
+
+            // Text-Werte: Profil-Name (z.B. Hue-Szenenname) in den echten Wert übersetzen
+            if (is_string($value)) {
+                $value = $this->resolveProfileAssociationValue($varId, $value);
+            }
+
+            try {
+                if (!@RequestAction($varId, $value)) {
+                    $this->Logger_Err(sprintf('Lichtsteuerung: RequestAction auf #%d fehlgeschlagen', $varId));
+                }
+            } catch (\Throwable $e) {
+                // Aktor-Fehler (z.B. Hue) darf die Steuerung nicht abbrechen
+                $this->Logger_Err(sprintf('Lichtsteuerung: Fehler bei #%d: %s', $varId, $e->getMessage()));
             }
         }
 
         $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode($lastStates, JSON_THROW_ON_ERROR));
+    }
+
+    /**
+     * Wenn die Variable ein Profil mit Assoziationen hat und der Text einem Assoziationsnamen entspricht,
+     * wird der zugehörige Wert zurückgegeben (z.B. Szenenname → Szenen-ID). Sonst unverändert.
+     */
+    private function resolveProfileAssociationValue(int $varId, string $text): string
+    {
+        $var     = IPS_GetVariable($varId);
+        $profile = $var['VariableCustomProfile'] !== '' ? $var['VariableCustomProfile'] : $var['VariableProfile'];
+        if ($profile === '' || !IPS_VariableProfileExists($profile)) {
+            return $text;
+        }
+        foreach (IPS_GetVariableProfile($profile)['Associations'] as $association) {
+            if (mb_strtolower(trim((string)$association['Name'])) === mb_strtolower(trim($text))) {
+                return (string)$association['Value'];
+            }
+        }
+        return $text;
     }
 
     private function checkContactLimit(array $currentPositions, array $targetPositions, array $contactLimit, bool $isOpeningContact): array
