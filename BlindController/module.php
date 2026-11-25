@@ -975,6 +975,17 @@ class Rolladensteuerung extends IPSModuleStrict
             return false;
         }
 
+        try {
+            return $this->controlBlindLocked($considerDeactivationTimeAuto);
+        } finally {
+            // Semaphore wird immer freigegeben, auch bei Fehlern (sonst blockiert der nächste Lauf 30 s)
+            IPS_SemaphoreLeave($this->InstanceID . '- Blind');
+        }
+    }
+
+    private function controlBlindLocked(bool $considerDeactivationTimeAuto): bool
+    {
+
         // globale Instanzvariablen setzen
         $this->profileBlindLevel = $this->GetPresentationInformation(self::PROP_BLINDLEVELID);
 
@@ -1132,7 +1143,6 @@ class Rolladensteuerung extends IPSModuleStrict
         //im Notfall wird die Automatik NICHT automatisch deaktiviert – nur Benutzer/Boolean darf deaktivieren
         // (Notfall öffnet den Rollladen, aber das Modul bleibt aktiv)
 
-        IPS_SemaphoreLeave($this->InstanceID . '- Blind');
 
         return true;
     }
