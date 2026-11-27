@@ -159,6 +159,13 @@ Pro Stellung konfigurierbar:
 
 **Freigabe-Variable** (optional): Lichtsteuerung des gesamten Kontakts nur aktiv wenn diese Boolean-Variable `true` ist.
 
+Zusätzlich gibt es unter der Instanz den Schalter **Lichtsteuerung** (`LIGHT_CONTROL`), mit dem die gesamte Lichtsteuerung im Webfront ein- und ausgeschaltet wird, sowie die Textvariable **Lichtsteuerung Info** (`LIGHT_INFO`) mit der letzten Lichtaktion. Die Lichtsteuerung wirkt nur in der Nachtphase.
+
+Bei Text-Werten (z.B. Hue-Szenen) kann statt des Profilwerts auch der Name aus dem Profil eingetragen werden; er wird automatisch in den Wert übersetzt.
+
+### Tag/Nacht-Wechsel
+Der Wechsel erfolgt flankenbasiert: Zufahren nur, wenn die Abend-Quelle auf Nacht wechselt; Auffahren nur, wenn die Morgen-Quelle auf Tag wechselt. Die Vorrang-Variablen im Webfront bleiben beim Speichern der Konfiguration erhalten, solange die Konfiguration selbst nicht geändert wurde.
+
 ### 5.8 Kontakte zum Schließen (optional)
 
 Bis zu zwei Kontakte. Solange ein Kontakt aktiv ist, wird der Rollladen auf maximal die konfigurierte Maximalhöhe begrenzt. Auch nur während der Nachtphase aktiv.

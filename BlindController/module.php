@@ -209,6 +209,8 @@ class Rolladensteuerung extends IPSModuleStrict
     //variable names
     private const string VAR_IDENT_LAST_MESSAGE    = 'LAST_MESSAGE';
     private const string VAR_IDENT_ACTIVATED       = 'ACTIVATED';
+    private const string VAR_IDENT_LIGHT_CONTROL   = 'LIGHT_CONTROL';
+    private const string VAR_IDENT_LIGHT_INFO      = 'LIGHT_INFO';
     private const string VAR_IDENT_MORNING_MODE    = 'MORNING_MODE';
     private const string VAR_IDENT_EVENING_MODE    = 'EVENING_MODE';
 
@@ -286,6 +288,15 @@ class Rolladensteuerung extends IPSModuleStrict
         switch ($Ident) {
             case self::VAR_IDENT_ACTIVATED:
                 $this->handleActivation($Value);
+                break;
+
+            case self::VAR_IDENT_LIGHT_CONTROL:
+                $this->SetValue(self::VAR_IDENT_LIGHT_CONTROL, (bool)$Value);
+                $this->Logger_Inf('Lichtsteuerung ' . ((bool)$Value ? 'eingeschaltet' : 'ausgeschaltet'));
+                if ((bool)$Value) {
+                    // Zustände invalidieren, damit die aktuelle Griffstellung beim nächsten Lauf angewendet wird
+                    $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
+                }
                 break;
 
             case self::VAR_IDENT_MORNING_MODE:
@@ -1509,6 +1520,11 @@ class Rolladensteuerung extends IPSModuleStrict
      */
     private function applyLightControl(bool $forceExecute = false, bool $isDay = false): void
     {
+        if (!$this->GetValue(self::VAR_IDENT_LIGHT_CONTROL)) {
+            $this->Logger_Dbg(__FUNCTION__, 'Lichtsteuerung ausgeschaltet (Variable)');
+            return;
+        }
+
         // Lichtsteuerung nur aktiv während der Nachtphase (isDay=false)
         if ($isDay) {
             $this->Logger_Dbg(__FUNCTION__, 'Lichtsteuerung inaktiv: Tagphase (isDay=true)');
@@ -1624,10 +1640,18 @@ class Rolladensteuerung extends IPSModuleStrict
             }
 
             try {
-                if (!@RequestAction($varId, $value)) {
+                $ok = @RequestAction($varId, $value);
+                if (!$ok) {
                     $this->Logger_Err(sprintf('Lichtsteuerung: RequestAction auf #%d fehlgeschlagen', $varId));
                 }
+                $this->SetValue(self::VAR_IDENT_LIGHT_INFO, sprintf(
+                    '%s | K%d %s: #%d [%s] = %s → %s',
+                    date('H:i:s'), $i, $stateKey, $varId, IPS_GetName($varId), json_encode($value), $ok ? 'OK' : 'Fehler'
+                ));
             } catch (\Throwable $e) {
+                $this->SetValue(self::VAR_IDENT_LIGHT_INFO, sprintf(
+                    '%s | K%d %s: #%d Fehler: %s', date('H:i:s'), $i, $stateKey, $varId, $e->getMessage()
+                ));
                 // Aktor-Fehler (z.B. Hue) darf die Steuerung nicht abbrechen
                 $this->Logger_Err(sprintf('Lichtsteuerung: Fehler bei #%d: %s', $varId, $e->getMessage()));
             }
@@ -1987,6 +2011,7 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterAttributeInteger('AttrTimeStampIsDayChange', 0);
         $this->RegisterAttributeBoolean('AttrIsDay', false);
         $this->RegisterAttributeString('AttrLastSignals', '{}');
+        $this->RegisterAttributeString('AttrAppliedModes', '{}');
         $this->RegisterAttributeBoolean(self::ATTR_CONTACT_OPEN, false);
         $this->RegisterAttributeString(
             self::ATTR_LASTMOVE . self::PROP_BLINDLEVELID,
@@ -2007,6 +2032,15 @@ class Rolladensteuerung extends IPSModuleStrict
     {
         $this->RegisterVariableBoolean(self::VAR_IDENT_ACTIVATED, $this->Translate('Activated'), ['PRESENTATION' => VARIABLE_PRESENTATION_SWITCH]);
         $this->RegisterVariableString(self::VAR_IDENT_LAST_MESSAGE, $this->Translate('Last Message'));
+
+        // Lichtsteuerung: Schalter (Standard: an) und Info-Text zur letzten Lichtaktion
+        $lightControlExisted = (int)@IPS_GetObjectIDByIdent(self::VAR_IDENT_LIGHT_CONTROL, $this->InstanceID) > 0;
+        $this->RegisterVariableBoolean(self::VAR_IDENT_LIGHT_CONTROL, $this->Translate('Lichtsteuerung'), ['PRESENTATION' => VARIABLE_PRESENTATION_SWITCH]);
+        if (!$lightControlExisted) {
+            $this->SetValue(self::VAR_IDENT_LIGHT_CONTROL, true);
+        }
+        $this->RegisterVariableString(self::VAR_IDENT_LIGHT_INFO, $this->Translate('Lichtsteuerung Info'));
+        $this->EnableAction(self::VAR_IDENT_LIGHT_CONTROL);
 
         // Profil für Morgen-/Abend-Modus (0=Wochenplan, 1=IsDay)
         $profileName = 'Rolladensteuerung.Mode';
@@ -2034,9 +2068,20 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->EnableAction(self::VAR_IDENT_MORNING_MODE);
         $this->EnableAction(self::VAR_IDENT_EVENING_MODE);
 
-        // Wert aus Property synchronisieren (beim Speichern der Konfiguration)
-        $this->SetValue(self::VAR_IDENT_MORNING_MODE, $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING));
-        $this->SetValue(self::VAR_IDENT_EVENING_MODE, $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING));
+        // Werte aus der Konfiguration nur übernehmen, wenn sich die Konfiguration geändert hat.
+        // Eine Auswahl im Webfront bleibt sonst bei jedem "Änderungen übernehmen" erhalten.
+        $propModes = [
+            'morning' => $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_MORNING),
+            'evening' => $this->ReadPropertyInteger(self::PROP_PRIORITY_MODE_EVENING),
+        ];
+        $applied = json_decode($this->ReadAttributeString('AttrAppliedModes'), true) ?: [];
+        if (($applied['morning'] ?? null) !== $propModes['morning']) {
+            $this->SetValue(self::VAR_IDENT_MORNING_MODE, $propModes['morning']);
+        }
+        if (($applied['evening'] ?? null) !== $propModes['evening']) {
+            $this->SetValue(self::VAR_IDENT_EVENING_MODE, $propModes['evening']);
+        }
+        $this->WriteAttributeString('AttrAppliedModes', json_encode($propModes, JSON_THROW_ON_ERROR));
     }
 
     private function RegisterLinks(): void
