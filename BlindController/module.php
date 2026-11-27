@@ -685,6 +685,19 @@ class Rolladensteuerung extends IPSModuleStrict
             return;
         }
 
+        // Kontakt der Lichtsteuerung: Licht sofort schalten, ohne auf eine laufende Rollladenbewegung zu warten
+        if (IPS_GetKernelRunlevel() === KR_READY
+            && in_array($SenderID, [
+                $this->ReadPropertyInteger(self::PROP_CONTACTOPEN1ID),
+                $this->ReadPropertyInteger(self::PROP_CONTACTOPEN2ID),
+            ], true)) {
+            try {
+                $this->applyLightControl(false, $this->ReadAttributeBoolean('AttrIsDay'));
+            } catch (\Throwable $e) {
+                $this->Logger_Err('Lichtsteuerung: ' . $e->getMessage());
+            }
+        }
+
         // Prüfen, ob die Verzögerungszeit (DeactivationTimeAuto) berücksichtigt werden soll
         $isTriggerSource = in_array(
             $SenderID,
@@ -1155,6 +1168,17 @@ class Rolladensteuerung extends IPSModuleStrict
         $bNoMove              = $contactResult['bNoMove'];
         $Hinweis              = $contactResult['hint'];
 
+        // --- Lichtsteuerung ausführen (VOR der Rollladenbewegung: die Bewegung wartet bis zu 90 s auf die Endposition) ---
+        // Bei Tag/Nacht-Wechsel: lastStates zurücksetzen damit Lichtsteuerung immer neu ausgeführt wird
+        if ($dayStateChanged) {
+            $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
+        }
+        try {
+            $this->applyLightControl($dayStateChanged, $isDay);
+        } catch (\Throwable $e) {
+            $this->Logger_Err('Lichtsteuerung: ' . $e->getMessage());
+        }
+
         // --- 6. Bewegung ausführen ---
         $blindLevel = $this->calculateNormalizedLevel($positionsNew['BlindLevel'], $this->profileBlindLevel);
         $slatsLevel = -1;
@@ -1164,17 +1188,6 @@ class Rolladensteuerung extends IPSModuleStrict
             }
 
             $this->MoveBlind($blindLevel, $slatsLevel, $deactivationTimeAuto, $Hinweis);
-        }
-
-        // --- 7. Lichtsteuerung ausführen (nach Rollladenbewegung) ---
-        // Bei Tag/Nacht-Wechsel: lastStates zurücksetzen damit Lichtsteuerung immer neu ausgeführt wird
-        if ($dayStateChanged) {
-            $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
-        }
-        try {
-            $this->applyLightControl($dayStateChanged, $isDay);
-        } catch (\Throwable $e) {
-            $this->Logger_Err('Lichtsteuerung: ' . $e->getMessage());
         }
 
         // --- 8. Status-Meldung aktualisieren ---
@@ -1564,6 +1577,20 @@ class Rolladensteuerung extends IPSModuleStrict
      * eine Variable (boolean, string, float) schalten.
      */
     private function applyLightControl(bool $forceExecute = false, bool $isDay = false): void
+    {
+        // Eigene Sperre, damit gleichzeitige Läufe (Kontakt-Sofortreaktion und Steuerungslauf) sich nicht überschneiden
+        if (!IPS_SemaphoreEnter($this->InstanceID . '- Light', 10 * 1000)) {
+            $this->Logger_Err('Lichtsteuerung: Sperre nicht erhalten');
+            return;
+        }
+        try {
+            $this->applyLightControlLocked($forceExecute, $isDay);
+        } finally {
+            IPS_SemaphoreLeave($this->InstanceID . '- Light');
+        }
+    }
+
+    private function applyLightControlLocked(bool $forceExecute, bool $isDay): void
     {
         if (!$this->GetValue(self::VAR_IDENT_LIGHT_CONTROL)) {
             $this->Logger_Dbg(__FUNCTION__, 'Lichtsteuerung ausgeschaltet (Variable)');
