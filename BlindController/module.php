@@ -1031,7 +1031,12 @@ class Rolladensteuerung extends IPSModuleStrict
         $tsAutomatik = $this->ReadAttributeInteger(self::ATTR_TIMESTAMP_AUTOMATIC);
 
         // --- 2. Prüfen auf Tageswechsel oder manuelle Bewegungssperre ---
+        $computedIsDay   = $dayState['isDay'];
         $dayStateChanged = $this->checkIsDayChange($dayState);
+        // Signale nur merken, wenn die Flanke verarbeitet wurde (nicht, solange eine Verzögerung läuft)
+        if ($computedIsDay === $dayState['isDay']) {
+            $this->WriteAttributeString('AttrLastSignals', json_encode($dayState['signals'], JSON_THROW_ON_ERROR));
+        }
         if ($dayStateChanged) {
             // Beim Tageswechsel: Sperre aufheben, manuelle Bewegung zurücksetzen
             $deactivationTimeAuto = 0;
@@ -1177,18 +1182,27 @@ class Rolladensteuerung extends IPSModuleStrict
             $closeSignal = $isDayByDayDetection;
         }
 
-        // isDay bestimmen:
-        // Jede Quelle ist nur für ihren Übergang zuständig:
-        // - closeSignal=false: Abend-Quelle will zufahren (nur relevant wenn aktuell offen)
-        // - openSignal=true:   Morgen-Quelle will auffahren (nur relevant wenn aktuell zu)
-        if ($lastIsDay === true && $closeSignal === false) {
-            // Rollladen ist offen, Abend-Quelle sagt Nacht → zufahren
+        // isDay bestimmen – FLANKENBASIERT:
+        // - Zufahren nur, wenn die Abend-Quelle auf Nacht WECHSELT (Tag→Nacht-Flanke)
+        // - Auffahren nur, wenn die Morgen-Quelle auf Tag WECHSELT (Nacht→Tag-Flanke)
+        // Ohne Flanke bleibt der Zustand erhalten. So öffnet z.B. der Wochenplan nicht erneut,
+        // nachdem IsDay abends bereits geschlossen hat, nur weil der Wochenplan noch "Tag" meldet.
+        $signals = [
+            'wp'    => $isDayByTimeSchedule,
+            'isday' => $isDayByDayDetection,
+        ];
+        $prev       = json_decode($this->ReadAttributeString('AttrLastSignals'), true) ?: [];
+        $openKey    = $morningMode === 0 ? 'wp' : 'isday';
+        $closeKey   = $eveningMode === 0 ? 'wp' : 'isday';
+        // Ohne Vorwert (erster Lauf) gibt es keine Flanke – der Wert wird nur gemerkt
+        $openEdge  = $openSignal === true && ($prev[$openKey] ?? null) === false;
+        $closeEdge = $closeSignal === false && ($prev[$closeKey] ?? null) === true;
+
+        if ($lastIsDay === true && $closeEdge) {
             $isDay = false;
-        } elseif ($lastIsDay === false && $openSignal === true) {
-            // Rollladen ist zu, Morgen-Quelle sagt Tag → auffahren
+        } elseif ($lastIsDay === false && $openEdge) {
             $isDay = true;
         } else {
-            // Kein Übergang → Zustand beibehalten
             $isDay = $lastIsDay;
         }
 
@@ -1207,6 +1221,8 @@ class Rolladensteuerung extends IPSModuleStrict
             'brightness'          => $brightness,
             'priorityMode'        => $morningMode,
             'morningMode'         => $morningMode,
+            'signals'             => $signals,
+            'computedIsDay'       => $isDay,
             'eveningMode'         => $eveningMode,
             'isMorningPhase'      => !$lastIsDay,
         ];
@@ -1970,6 +1986,7 @@ class Rolladensteuerung extends IPSModuleStrict
         );
         $this->RegisterAttributeInteger('AttrTimeStampIsDayChange', 0);
         $this->RegisterAttributeBoolean('AttrIsDay', false);
+        $this->RegisterAttributeString('AttrLastSignals', '{}');
         $this->RegisterAttributeBoolean(self::ATTR_CONTACT_OPEN, false);
         $this->RegisterAttributeString(
             self::ATTR_LASTMOVE . self::PROP_BLINDLEVELID,
