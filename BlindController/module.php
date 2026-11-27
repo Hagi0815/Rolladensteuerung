@@ -268,6 +268,7 @@ class Rolladensteuerung extends IPSModuleStrict
         $this->RegisterReferences();
         $this->RegisterMessages();
         $this->RegisterVariables();
+        $dayStateResynced = $this->resyncDayState();
         try {
             $this->RegisterLinks();
         } catch (\Exception $e) {
@@ -275,6 +276,50 @@ class Rolladensteuerung extends IPSModuleStrict
         }
 
         $this->SetInstanceStatusAndTimerEvent();
+
+        if ($dayStateResynced && $this->GetValue(self::VAR_IDENT_ACTIVATED)) {
+            // Tageszustand wurde an die aktuellen Quellen angepasst → Rollladen entsprechend nachführen
+            $this->RegisterOnceTimer('BlindControlTimer_ControlBlind', sprintf('BLC_ControlBlind(%s, false);', $this->InstanceID));
+        }
+    }
+
+    /**
+     * Gleicht den gemerkten Tageszustand beim Übernehmen der Konfiguration mit den aktuellen Quellen ab.
+     * Abend-Quelle meldet Nacht → Nacht; sonst Morgen-Quelle meldet Tag → Tag; sonst unverändert.
+     * Die Flanken-Vorwerte werden auf den aktuellen Stand gesetzt.
+     *
+     * @return bool True, wenn sich der gemerkte Tageszustand geändert hat.
+     */
+    private function resyncDayState(): bool
+    {
+        try {
+            $brightness = null;
+            $wp         = $this->getIsDayByTimeSchedule();
+            $isDaySrc   = $this->getIsDayByDayDetection($brightness, 0.0);
+            $morning    = (int)$this->GetValue(self::VAR_IDENT_MORNING_MODE) === 0 ? $wp : $isDaySrc;
+            $evening    = (int)$this->GetValue(self::VAR_IDENT_EVENING_MODE) === 0 ? $wp : $isDaySrc;
+
+            $old = $this->ReadAttributeBoolean('AttrIsDay');
+            $new = $old;
+            if ($evening === false) {
+                $new = false;
+            } elseif ($morning === true) {
+                $new = true;
+            }
+
+            $this->WriteAttributeString('AttrLastSignals', json_encode(['wp' => $wp, 'isday' => $isDaySrc], JSON_THROW_ON_ERROR));
+            if ($new !== $old) {
+                $this->WriteAttributeBoolean('AttrIsDay', $new);
+                $this->WriteAttributeInteger('AttrTimeStampIsDayChange', time());
+                $this->WriteAttributeBoolean(self::ATTR_IS_MORNING, $new);
+                $this->WriteAttributeString(self::ATTR_LIGHT_STATE, json_encode([1 => -1, 2 => -1], JSON_THROW_ON_ERROR));
+                $this->Logger_Inf(sprintf('Tageszustand abgeglichen: %s → %s', $old ? 'Tag' : 'Nacht', $new ? 'Tag' : 'Nacht'));
+                return true;
+            }
+        } catch (\Throwable $e) {
+            $this->Logger_Err('Abgleich Tageszustand: ' . $e->getMessage());
+        }
+        return false;
     }
 
     public function RequestAction(string $Ident, mixed $Value): void
